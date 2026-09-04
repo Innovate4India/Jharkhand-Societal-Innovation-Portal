@@ -1,0 +1,128 @@
+import mongoose from 'mongoose';
+import bcryptjs from 'bcryptjs';
+
+const userSchema = new mongoose.Schema(
+  {
+    // Common fields
+    name: {
+      type: String,
+      required: [true, 'Name is required'],
+      trim: true
+    },
+    email: {
+      type: String,
+      required: [true, 'Email is required'],
+      unique: true,
+      lowercase: true,
+      match: [/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/, 'Please provide a valid email']
+    },
+    password: {
+      type: String,
+      required: [true, 'Password is required'],
+      minlength: [8, 'Password must be at least 8 characters'],
+      select: false
+    },
+    role: {
+      type: String,
+      enum: {
+        values: ['citizen', 'government', 'university', 'industry'],
+        message: 'Role must be one of: citizen, government, university, industry'
+      },
+      required: [true, 'Role is required']
+    },
+
+    // Citizen-specific fields
+    mobile: {
+      type: String,
+      required: function() { return this.role === 'citizen'; }
+    },
+    district: {
+      type: String,
+      required: function() { return this.role === 'citizen' || this.role === 'government'; }
+    },
+    villageOrCity: {
+      type: String,
+      required: function() { return this.role === 'citizen'; }
+    },
+
+    // Government-specific fields
+    department: {
+      type: String,
+      required: function() { return this.role === 'government'; }
+    },
+    designation: {
+      type: String,
+      required: function() { return this.role === 'government'; }
+    },
+
+    // University-specific fields
+    institution: {
+      type: String,
+      required: function() { return this.role === 'university'; }
+    },
+    universityDepartment: {
+      type: String,
+      required: function() { return this.role === 'university'; }
+    },
+    accountType: {
+      type: String,
+      enum: {
+        values: ['student', 'faculty', 'researcher'],
+        message: 'accountType must be one of: student, faculty, researcher'
+      },
+      required: function() { return this.role === 'university'; }
+    },
+
+    // Industry-specific fields
+    organizationName: {
+      type: String,
+      required: function() { return this.role === 'industry'; }
+    },
+    organizationType: {
+      type: String,
+      enum: {
+        values: ['industry', 'startup', 'msme', 'csr', 'research-lab', 'innovation-hub'],
+        message: 'organizationType must be one of: industry, startup, msme, csr, research-lab, innovation-hub'
+      },
+      required: function() { return this.role === 'industry'; }
+    },
+    expertise: {
+      type: String,
+      required: function() { return this.role === 'industry'; }
+    }
+  },
+  {
+    timestamps: true
+  }
+);
+
+// Hash password before saving
+userSchema.pre('save', async function(next) {
+  if (!this.isModified('password')) {
+    return next();
+  }
+
+  try {
+    const salt = await bcryptjs.genSalt(10);
+    this.password = await bcryptjs.hash(this.password, salt);
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Method to compare password
+userSchema.methods.matchPassword = async function(enteredPassword) {
+  return await bcryptjs.compare(enteredPassword, this.password);
+};
+
+// Return user object without password
+userSchema.methods.toJSON = function() {
+  const user = this.toObject();
+  delete user.password;
+  return user;
+};
+
+const User = mongoose.model('User', userSchema);
+
+export default User;
