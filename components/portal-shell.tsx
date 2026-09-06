@@ -32,6 +32,7 @@ import ChallengesPage from "@/components/challenges-page";
 import GovernmentDashboard from "@/components/government-dashboard";
 import UniversityDashboard from "@/components/university-dashboard";
 import IndustryDashboard from "@/components/industry-dashboard";
+import SahayakChat from "@/components/sahayak-chat";
 
 type View =
   | "home"
@@ -730,6 +731,7 @@ export default function PortalShell() {
         ) : (
           <Dashboard setView={guardedSetView} />
         )}
+        {role === "Citizen" && <SahayakChat onNavigate={guardedSetView} />}
       </div>
     </div>
   );

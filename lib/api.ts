@@ -89,6 +89,23 @@ export async function getCurrentUser() {
   });
 }
 
+export async function chatWithSahayak(problem: string, language: 'en' | 'hi' = 'en') {
+  return apiCall<{
+    message?: string;
+    understanding?: { summary?: string };
+    severity?: string;
+    can_solve_myself?: boolean;
+    solution_info?: { steps?: string[]; tools_materials?: string[]; estimated_time?: string; estimated_cost?: string };
+    safety_guidance?: { precautions?: string[]; when_to_stop?: string };
+    escalation?: { required?: boolean; contact?: string; reason?: string };
+    prevention?: string[];
+    helplines?: { name?: string; number?: string; purpose?: string }[];
+  }>('/api/sahayak/chat', {
+    method: 'POST',
+    body: JSON.stringify({ problem, language }),
+  });
+}
+
 export async function getChallenges() {
   return apiCall<Array<{
     _id: string;
