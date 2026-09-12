@@ -383,7 +383,7 @@ export default function ProjectManagement({ projectId }: ProjectManagementProps)
               <button onClick={() => setShowComposer(false)} aria-label="Close dialog"><X className="size-5 text-slate-500" /></button>
             </div>
             <textarea value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Write an update or question..." className="mt-6 min-h-32 w-full rounded-xl border border-slate-200 p-3 text-sm outline-none focus:border-emerald-500" />
-            <div className="mt-4 flex justify-between">
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
               <button onClick={() => notify('Attachment flow selected')} className="flex items-center gap-2 text-xs font-bold text-slate-500"><Paperclip className="size-4" />Attach file</button>
               <button onClick={() => { setShowComposer(false); setMessage(''); notify('Message sent to the team') }} disabled={!message.trim()} className="flex items-center gap-2 rounded-lg bg-emerald-800 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-40"><Send className="size-4" />Send message</button>
             </div>

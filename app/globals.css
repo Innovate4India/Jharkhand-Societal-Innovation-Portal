@@ -184,6 +184,9 @@
     max-width: 100%;
     overflow-x: hidden;
   }
+  body:has([role="dialog"]) {
+    overflow: hidden;
+  }
   body {
     @apply bg-background text-foreground;
   }

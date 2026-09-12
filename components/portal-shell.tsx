@@ -633,8 +633,8 @@ function Submit({ setView }: { setView: (v: View) => void }) {
                 {selectedFiles.length > 0 && (
                   <ul className="mt-2 w-full space-y-1 text-left text-xs text-slate-600">
                     {selectedFiles.map((file, index) => (
-                      <li key={`${file.name}-${file.lastModified}`} className="flex items-center justify-between gap-2 rounded bg-white px-2 py-1">
-                        <span className="truncate">{file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)</span>
+                      <li key={`${file.name}-${file.lastModified}`} className="flex items-start justify-between gap-2 rounded bg-white px-2 py-1">
+                        <span className="min-w-0 break-words">{file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)</span>
                         <button type="button" onClick={() => setSelectedFiles((current) => current.filter((_, fileIndex) => fileIndex !== index))} className="font-bold text-red-600">Remove</button>
                       </li>
                     ))}
