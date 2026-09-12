@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useEffect, useState } from 'react'
 import { ArrowLeft, ArrowUpRight, BriefcaseBusiness, Check, CheckCircle2, ChevronRight, Circle, FileText, Flag, MessageSquare, Paperclip, Send, Users, Wrench, X } from 'lucide-react'
@@ -174,7 +174,7 @@ export default function ProjectManagement({ projectId }: ProjectManagementProps)
   ]
 
   return (
-    <main className="relative min-h-full bg-slate-50 p-5 sm:p-8">
+    <main className="relative min-h-full min-w-0 bg-slate-50 p-5 sm:p-8">
       {toast && <div className="fixed bottom-5 right-5 z-50 rounded-xl bg-emerald-900 px-4 py-3 text-sm font-semibold text-white shadow-lg" role="status">{toast}</div>}
       <div className="mx-auto max-w-[1450px]">
         <button onClick={() => window.history.back()} className="mb-5 flex items-center gap-2 text-sm font-bold text-emerald-800"><ArrowLeft className="size-4" />Back to workspace</button>
@@ -185,8 +185,8 @@ export default function ProjectManagement({ projectId }: ProjectManagementProps)
               <span className="text-xs font-bold text-emerald-700">{project._id.slice(0, 10)}</span>
               <Status tone={projectStatusTone}>{getStageLabel(project.status)}</Status>
             </div>
-            <h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">{project.title}</h1>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">{project.description}</p>
+            <h1 className="mt-2 break-words text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">{project.title}</h1>
+            <p className="mt-2 max-w-3xl break-words text-sm leading-6 text-slate-500">{project.description}</p>
             <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-xs font-semibold text-slate-500">
               <span>{project.challenge?.district || 'Jharkhand district'}</span>
               <span>{project.challenge?.category || project.projectType || 'Innovation'}</span>
@@ -258,7 +258,7 @@ export default function ProjectManagement({ projectId }: ProjectManagementProps)
                   <span className="grid size-9 place-items-center rounded-full bg-orange-50 text-orange-700"><Users className="size-4" /></span>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-bold text-slate-800">{member.name || 'Team member'}</p>
-                    <p className="text-xs text-slate-500">{member.accountType || 'University'} · {member.universityDepartment || 'Department unavailable'}</p>
+                    <p className="text-xs text-slate-500">{member.accountType || 'University'} � {member.universityDepartment || 'Department unavailable'}</p>
                   </div>
                 </div>
               )) : <p className="text-sm text-slate-500">No team members have been assigned yet.</p>}
@@ -273,20 +273,20 @@ export default function ProjectManagement({ projectId }: ProjectManagementProps)
                 <span className="grid size-9 place-items-center rounded-lg bg-white text-emerald-800"><FileText className="size-4" /></span>
                 <div>
                   <p className="text-sm font-bold text-slate-800">{project.title}</p>
-                  <p className="text-xs text-slate-500">{project.projectType || 'Project'} · {project.challenge?.title || 'Challenge'}</p>
+                  <p className="text-xs text-slate-500">{project.projectType || 'Project'} � {project.challenge?.title || 'Challenge'}</p>
                 </div>
               </div>
               <p className="mt-4 text-sm leading-6 text-slate-600">{project.solutionSummary || project.description}</p>
               <button onClick={() => notify('Proposal opened')} className="mt-3 text-xs font-bold text-emerald-800">View proposal <ArrowUpRight className="inline size-3" /></button>
             </div>
-            <div className="mt-4 grid grid-cols-2 gap-3">
+            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="rounded-xl border border-slate-100 p-3">
                 <p className="text-xs text-slate-500">Impact</p>
                 <p className="mt-1 text-lg font-bold text-slate-950">{project.expectedImpact || 'Not set yet'}</p>
               </div>
               <div className="rounded-xl border border-slate-100 p-3">
                 <p className="text-xs text-slate-500">Budget</p>
-                <p className="mt-1 text-lg font-bold text-orange-700">{project.estimatedBudget ? `₹${project.estimatedBudget}` : 'Unspecified'}</p>
+                <p className="mt-1 text-lg font-bold text-orange-700">{project.estimatedBudget ? `?${project.estimatedBudget}` : 'Unspecified'}</p>
               </div>
             </div>
           </Card>
@@ -322,10 +322,10 @@ export default function ProjectManagement({ projectId }: ProjectManagementProps)
           </Card>
 
           <Card eyebrow="Outcomes" title="Impact & budget">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {[
                 ['Project status', getStageLabel(project.status)],
-                ['Budget', project.estimatedBudget ? `₹${project.estimatedBudget}` : 'Unspecified'],
+                ['Budget', project.estimatedBudget ? `?${project.estimatedBudget}` : 'Unspecified'],
                 ['Industry partners', String(industryPartners.length)],
                 ['Team members', String(teamMembers.length)],
               ].map(([label, value]) => (
@@ -374,7 +374,7 @@ export default function ProjectManagement({ projectId }: ProjectManagementProps)
 
       {showComposer && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/40 p-4">
-          <div role="dialog" aria-modal="true" aria-labelledby="message-title" className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
+          <div role="dialog" aria-modal="true" aria-labelledby="message-title" className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl sm:p-6">
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-[11px] font-bold uppercase tracking-wider text-orange-700">Team communication</p>

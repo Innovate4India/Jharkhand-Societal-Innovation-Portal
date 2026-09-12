@@ -103,7 +103,7 @@ function Sidebar({
   return (
     <aside
       className={cn(
-        "fixed inset-y-0 left-0 z-40 flex w-72 shrink-0 flex-col overflow-hidden border-r border-[#123F8C] bg-[#06245C] px-5 py-6 text-white transition-[width,transform,padding,border] duration-250 ease-in-out lg:static lg:translate-x-0",
+        "fixed inset-y-0 left-0 z-40 flex w-72 max-w-[calc(100vw-1rem)] shrink-0 flex-col overflow-y-auto overflow-x-hidden border-r border-[#123F8C] bg-[#06245C] px-5 py-6 text-white transition-[width,transform,padding,border] duration-250 ease-in-out lg:static lg:translate-x-0",
         open
           ? "translate-x-0"
           : "-translate-x-full border-r-0 px-0 lg:w-0 lg:translate-x-0",
@@ -228,8 +228,8 @@ function Topbar({
 }) {
   const [showMenu, setShowMenu] = useState(false);
   return (
-    <header className="flex h-20 items-center justify-between border-b border-slate-200 bg-white px-5 sm:px-8">
-      <div className="flex items-center gap-3">
+    <header className="flex h-20 min-w-0 items-center justify-between gap-2 border-b border-slate-200 bg-white px-3 sm:px-8">
+      <div className="flex min-w-0 flex-1 items-center gap-3">
         {!open && (
           <button
             className="grid size-9 place-items-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
@@ -240,14 +240,14 @@ function Topbar({
             <PanelLeftOpen className="size-5" />
           </button>
         )}
-        <div>
-          <p className="text-xs font-medium text-slate-400">
+        <div className="min-w-0">
+          <p className="truncate text-xs font-medium text-slate-400">
             Jharkhand Societal Innovation Portal
           </p>
-          <h1 className="text-lg font-bold text-slate-950">{title}</h1>
+          <h1 className="truncate text-lg font-bold text-slate-950">{title}</h1>
         </div>
       </div>
-      <div className="flex items-center gap-4">
+      <div className="flex shrink-0 items-center gap-2 sm:gap-4">
         <ThemeToggle />
         <Search className="hidden size-4 text-slate-400 sm:block" />
         <Bell className="size-4 text-slate-500" />
@@ -278,7 +278,7 @@ function Topbar({
 function Home({ setView }: { setView: (v: View) => void }) {
   return (
     <div className="min-h-screen bg-slate-50">
-      <header className="flex items-center justify-between border-b border-slate-200 bg-white px-5 py-4 sm:px-10">
+      <header className="flex items-center justify-between gap-2 border-b border-slate-200 bg-white px-3 py-4 sm:px-10">
         <button
           onClick={() => setView("home")}
           className="flex items-center gap-3"
@@ -564,7 +564,7 @@ function Submit({ setView }: { setView: (v: View) => void }) {
             </div>
             <label className="flex flex-col gap-2 text-sm font-semibold text-slate-700">
               Location{" "}
-              <span className="flex gap-2">
+              <span className="flex flex-col gap-2 sm:flex-row">
                 <input
                   name="villageOrCity"
                   required
@@ -573,7 +573,7 @@ function Submit({ setView }: { setView: (v: View) => void }) {
                 />
                 <button
                   type="button"
-                  className="shrink-0 rounded-lg border border-slate-300 px-3 text-xs font-bold text-slate-600"
+                  className="shrink-0 rounded-lg border border-slate-300 px-3 py-3 text-xs font-bold text-slate-600 sm:py-0"
                 >
                   Use my location
                 </button>
@@ -745,8 +745,8 @@ function Dashboard({ setView }: { setView: (v: View) => void }) {
           {submittedChallenges.length ? submittedChallenges.map((challenge) => (
             <div key={challenge._id} className="rounded-xl border border-slate-100 bg-slate-50 p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <p className="font-bold text-slate-800">{challenge.title}</p>
-                <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-bold capitalize text-amber-800">{challenge.status === 'resolved' ? 'Problem Solved' : challenge.status.replaceAll('_', ' ')}</span>
+                <p className="min-w-0 flex-1 break-words font-bold text-slate-800">{challenge.title}</p>
+                <span className="shrink-0 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-bold capitalize text-amber-800">{challenge.status === 'resolved' ? 'Problem Solved' : challenge.status.replaceAll('_', ' ')}</span>
               </div>
               <p className="mt-2 text-xs text-slate-500">Priority: {challenge.priority} · University: {challenge.assignedUniversity?.institution || challenge.assignedUniversity?.name || 'Not assigned'}</p>
               {challenge.citizenContactNumber && <p className="mt-1 text-xs text-slate-500">Contact number: {challenge.citizenContactNumber}</p>}

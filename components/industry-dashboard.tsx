@@ -195,7 +195,7 @@ export default function IndustryDashboard() {
   const canOfferSupport = getCurrentUserFromStorage()?.role === 'industry'
 
   return (
-    <div className="relative min-h-full bg-slate-50 p-5 sm:p-8">
+    <div className="relative min-h-full min-w-0 bg-slate-50 p-5 sm:p-8">
       <div className="mx-auto max-w-[1450px]">
         {toast && <div className="fixed bottom-5 right-5 z-40 rounded-xl bg-emerald-900 px-4 py-3 text-sm font-semibold text-white shadow-lg" role="status">{toast}</div>}
 

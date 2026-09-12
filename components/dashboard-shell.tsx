@@ -37,10 +37,10 @@ function JharkhandOutline() {
 
 export function DashboardHero({ eyebrow, title, greeting, subtitle, actions, showCitizenTagline = false }: Omit<DashboardShellProps, 'stats' | 'children'>) {
   return (
-    <section className="relative overflow-hidden rounded-[2rem] bg-[#06245C] px-6 py-8 pb-40 text-white shadow-lg sm:px-10 sm:py-10 sm:pb-44 md:pb-10">
+    <section className="relative min-w-0 overflow-hidden rounded-[2rem] bg-[#06245C] px-5 py-7 pb-40 text-white shadow-lg sm:px-10 sm:py-10 sm:pb-44 md:pb-10">
       <div className="relative z-10 max-w-2xl md:max-w-[60%]">
         <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-blue-200">{eyebrow}</p>
-        <h2 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">{title}</h2>
+        <h2 className="mt-3 break-words text-3xl font-bold tracking-tight sm:text-4xl">{title}</h2>
         <p className="mt-5 text-lg font-semibold text-white">{greeting}</p>
         <p className="mt-2 max-w-xl text-sm leading-6 text-blue-100">{subtitle}</p>
         {actions && <div className="mt-6 flex flex-wrap gap-3">{actions}</div>}
