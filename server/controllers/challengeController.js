@@ -51,6 +51,7 @@ export const createChallenge = async (req, res, next) => {
       district,
       villageOrCity,
       ...(priority ? { priority } : {}),
+      status: 'under_review',
       submittedBy: userId,
       media: media || { images: [], videos: [], documents: [] }
     };
@@ -112,14 +113,14 @@ export const acceptChallenge = async (req, res, next) => {
       });
     }
 
-    if (!['submitted', 'under_review', 'assigned'].includes(challenge.status)) {
+    if (!['submitted', 'under_review', 'assigned', 'funding_approved'].includes(challenge.status)) {
       return res.status(400).json({
         success: false,
         message: 'This challenge cannot be accepted in its current status'
       });
     }
 
-    challenge.status = 'approved';
+    challenge.status = challenge.status === 'funding_approved' ? 'funding_approved' : 'assigned';
     await challenge.save();
     await challenge.populate([
       { path: 'submittedBy', select: 'name email role district villageOrCity' },
@@ -164,6 +165,11 @@ export const getAllChallenges = async (req, res, next) => {
     }
     if (priority) {
       filter.priority = priority;
+    }
+    if (req.user.role === 'university') {
+      filter.assignedUniversity = req.user.id;
+    } else if (req.user.role === 'citizen') {
+      filter.submittedBy = req.user.id;
     }
 
     // Get challenges sorted by newest first
@@ -212,6 +218,19 @@ export const getChallengeById = async (req, res, next) => {
       });
     }
 
+    if (req.user.role === 'university' && (!challenge.assignedUniversity || challenge.assignedUniversity._id.toString() !== req.user.id)) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have access to this challenge'
+      });
+    }
+    if (req.user.role === 'citizen' && challenge.submittedBy._id.toString() !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have access to this challenge'
+      });
+    }
+
     res.status(200).json({
       success: true,
       data: challenge
@@ -244,7 +263,7 @@ export const updateChallengeStatus = async (req, res, next) => {
       });
     }
 
-    const validStatuses = ['submitted', 'under_review', 'approved', 'assigned', 'in_progress', 'resolved', 'rejected'];
+    const validStatuses = ['submitted', 'under_review', 'approved', 'assigned', 'funding_approved', 'in_progress', 'resolved', 'rejected'];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({
         success: false,
@@ -268,6 +287,30 @@ export const updateChallengeStatus = async (req, res, next) => {
       return res.status(403).json({
         success: false,
         message: 'Only government users can update challenge status'
+      });
+    }
+
+    const existingChallenge = await Challenge.findById(id).select('status');
+    if (!existingChallenge) {
+      return res.status(404).json({
+        success: false,
+        message: 'Challenge not found'
+      });
+    }
+    const allowedTransitions = {
+      submitted: ['under_review'],
+      under_review: ['approved', 'rejected'],
+      approved: ['approved'],
+      assigned: ['assigned'],
+      funding_approved: ['funding_approved'],
+      in_progress: ['in_progress'],
+      resolved: ['resolved'],
+      rejected: ['rejected']
+    };
+    if (!allowedTransitions[existingChallenge.status]?.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot change challenge status from ${existingChallenge.status} to ${status}`
       });
     }
 
@@ -350,6 +393,14 @@ export const updateChallengePriority = async (req, res, next) => {
       return res.status(403).json({
         success: false,
         message: 'Only government users can update challenge priority'
+      });
+    }
+
+    const existingChallenge = await Challenge.findById(id).select('status');
+    if (!existingChallenge) {
+      return res.status(404).json({
+        success: false,
+        message: 'Challenge not found'
       });
     }
 
@@ -444,10 +495,24 @@ export const assignChallenge = async (req, res, next) => {
       });
     }
 
+    const existingChallenge = await Challenge.findById(id).select('status');
+    if (!existingChallenge) {
+      return res.status(404).json({
+        success: false,
+        message: 'Challenge not found'
+      });
+    }
+    if (existingChallenge.status !== 'approved') {
+      return res.status(400).json({
+        success: false,
+        message: 'Only approved challenges can be assigned to a university'
+      });
+    }
+
     // Find and update challenge
     const challenge = await Challenge.findByIdAndUpdate(
       id,
-      { assignedUniversity },
+      { assignedUniversity, status: 'assigned' },
       { new: true, runValidators: true }
     )
       .populate({
@@ -479,6 +544,77 @@ export const assignChallenge = async (req, res, next) => {
       });
     }
 
+    next(error);
+  }
+};
+
+// @desc    Approve government funding for an assigned challenge
+// @route   PATCH /api/challenges/:id/funding
+// @access  Private - Government only
+export const approveChallengeFunding = async (req, res, next) => {
+  try {
+    const { fundingAmount } = req.body;
+    const amount = Number(fundingAmount);
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'A positive funding amount is required'
+      });
+    }
+
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+    if (user.role !== 'government') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only government users can approve challenge funding'
+      });
+    }
+
+    const challenge = await Challenge.findById(req.params.id);
+    if (!challenge) {
+      return res.status(404).json({
+        success: false,
+        message: 'Challenge not found'
+      });
+    }
+    if (challenge.status !== 'assigned' || !challenge.assignedUniversity) {
+      return res.status(400).json({
+        success: false,
+        message: 'Only challenges assigned to a university can receive funding approval'
+      });
+    }
+
+    challenge.fundingAmount = amount;
+    challenge.fundingStatus = 'approved';
+    challenge.fundingApprovedBy = user._id;
+    challenge.fundingApprovedAt = new Date();
+    challenge.status = 'funding_approved';
+    await challenge.save();
+    await challenge.populate([
+      { path: 'submittedBy', select: 'name email role district villageOrCity' },
+      { path: 'assignedUniversity', select: 'name email institution universityDepartment' },
+      { path: 'fundingApprovedBy', select: 'name email role' }
+    ]);
+
+    res.status(200).json({
+      success: true,
+      message: 'Government funding approved successfully',
+      data: challenge
+    });
+  } catch (error) {
+    if (error.kind === 'ObjectId') {
+      return res.status(404).json({
+        success: false,
+        message: 'Challenge not found'
+      });
+    }
     next(error);
   }
 };

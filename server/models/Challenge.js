@@ -70,6 +70,7 @@ const challengeSchema = new mongoose.Schema(
           'under_review',
           'approved',
           'assigned',
+          'funding_approved',
           'in_progress',
           'resolved',
           'rejected'
@@ -138,6 +139,30 @@ const challengeSchema = new mongoose.Schema(
     assignedUniversity: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
+      default: null
+    },
+
+    // Government funding approval
+    fundingAmount: {
+      type: Number,
+      default: 0,
+      min: [0, 'Funding amount cannot be negative']
+    },
+    fundingStatus: {
+      type: String,
+      enum: {
+        values: ['pending', 'approved'],
+        message: 'Funding status must be pending or approved'
+      },
+      default: 'pending'
+    },
+    fundingApprovedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null
+    },
+    fundingApprovedAt: {
+      type: Date,
       default: null
     }
   },

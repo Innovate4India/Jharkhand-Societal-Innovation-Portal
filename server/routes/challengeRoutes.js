@@ -9,6 +9,7 @@ import {
   updateChallengeStatus,
   updateChallengePriority,
   assignChallenge,
+  approveChallengeFunding,
   deleteChallenge
 } from '../controllers/challengeController.js';
 
@@ -37,6 +38,9 @@ router.patch('/:id/priority', authorizeRoles('government'), updateChallengePrior
 
 // Assign challenge to university (government only)
 router.patch('/:id/assign', authorizeRoles('government'), assignChallenge);
+
+// Approve government funding (government only)
+router.patch('/:id/funding', authorizeRoles('government'), approveChallengeFunding);
 
 // Delete a challenge (challenge owner or government)
 router.delete('/:id', deleteChallenge);

@@ -31,7 +31,6 @@ import { cn } from "@/lib/utils";
 import ChallengesPage from "@/components/challenges-page";
 import GovernmentDashboard from "@/components/government-dashboard";
 import UniversityDashboard from "@/components/university-dashboard";
-import IndustryDashboard from "@/components/industry-dashboard";
 import SahayakChat from "@/components/sahayak-chat";
 
 type View =
@@ -39,10 +38,9 @@ type View =
   | "citizen"
   | "government"
   | "university"
-  | "industry"
   | "submit"
   | "challenges";
-type Role = "Citizen" | "Government" | "University" | "Industry";
+type Role = "Citizen" | "Government" | "University";
 
 const districts = [
   "Bokaro",
@@ -135,41 +133,45 @@ function Sidebar({
       </div>
       <nav className="mt-8 flex flex-col gap-2">
         <button
-          onClick={() => setView("citizen")}
+          onClick={() => setView(role === "Government" ? "government" : role === "University" ? "university" : "citizen")}
           className={cn(
             "flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium",
-            view === "citizen"
+            (view === "citizen" || view === "government" || view === "university")
               ? "bg-emerald-800 text-white"
               : "text-slate-600 hover:bg-slate-50",
           )}
         >
           <LayoutDashboard className="size-4" />
-          My dashboard
+          {role === "Government" ? "Government dashboard" : role === "University" ? "University dashboard" : "My dashboard"}
         </button>
-        <button
-          onClick={() => setView("challenges")}
-          className={cn(
-            "flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium",
-            view === "challenges"
-              ? "bg-emerald-800 text-white"
-              : "text-slate-600 hover:bg-slate-50",
-          )}
-        >
-          <Flag className="size-4" />
-          Browse challenges
-        </button>
-        <button
-          onClick={() => setView("submit")}
-          className={cn(
-            "flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium",
-            view === "submit"
-              ? "bg-emerald-800 text-white"
-              : "text-slate-600 hover:bg-slate-50",
-          )}
-        >
-          <FilePlus2 className="size-4" />
-          Submit a problem
-        </button>
+        {role === "Citizen" && (
+          <>
+            <button
+              onClick={() => setView("challenges")}
+              className={cn(
+                "flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium",
+                view === "challenges"
+                  ? "bg-emerald-800 text-white"
+                  : "text-slate-600 hover:bg-slate-50",
+              )}
+            >
+              <Flag className="size-4" />
+              Browse challenges
+            </button>
+            <button
+              onClick={() => setView("submit")}
+              className={cn(
+                "flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium",
+                view === "submit"
+                  ? "bg-emerald-800 text-white"
+                  : "text-slate-600 hover:bg-slate-50",
+              )}
+            >
+              <FilePlus2 className="size-4" />
+              Submit a problem
+            </button>
+          </>
+        )}
       </nav>
       <div className="mt-auto rounded-2xl bg-emerald-50 p-4">
         <ShieldCheck className="size-5 text-emerald-700" />
@@ -352,6 +354,7 @@ function Home({ setView }: { setView: (v: View) => void }) {
 
 function Submit({ setView }: { setView: (v: View) => void }) {
   const [submitted, setSubmitted] = useState(false);
+  const [submittedChallenge, setSubmittedChallenge] = useState<{ id: string; status: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [title, setTitle] = useState("");
@@ -370,7 +373,7 @@ function Submit({ setView }: { setView: (v: View) => void }) {
     const villageOrCity = String(formData.get('villageOrCity') || '').trim();
     if (required || !villageOrCity || submitting) return;
 
-    const priority = urgency.toLowerCase();
+    const priority = urgency.toLowerCase() as 'low' | 'medium' | 'high' | 'critical';
     if (!['low', 'medium', 'high', 'critical'].includes(priority)) return;
     setSubmitting(true);
     const response = await createChallenge({
@@ -385,6 +388,9 @@ function Submit({ setView }: { setView: (v: View) => void }) {
     if (!response.success) {
       setError(response.message || 'Unable to submit challenge. Please try again.');
       return;
+    }
+    if (response.data) {
+      setSubmittedChallenge({ id: response.data._id, status: response.data.status });
     }
     setSubmitted(true);
   }
@@ -410,14 +416,14 @@ function Submit({ setView }: { setView: (v: View) => void }) {
               <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
                 Challenge ID
               </p>
-              <p className="mt-1 font-bold text-slate-950">JH-2026-0047</p>
+              <p className="mt-1 font-bold text-slate-950">{submittedChallenge?.id || 'Created successfully'}</p>
             </div>
             <div>
               <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
                 Current status
               </p>
               <p className="mt-1 font-bold text-amber-700">
-                Submitted for Review
+                {submittedChallenge?.status === 'under_review' ? 'Under Government Review' : 'Submitted'}
               </p>
             </div>
           </div>
@@ -597,6 +603,7 @@ function Submit({ setView }: { setView: (v: View) => void }) {
 function Dashboard({ setView }: { setView: (v: View) => void }) {
   const currentUser = getCurrentUserFromStorage();
   const [submittedCount, setSubmittedCount] = useState<number | null>(null);
+  const [submittedChallenges, setSubmittedChallenges] = useState<Array<{ _id: string; title: string; status: string; priority: string; assignedUniversity?: { name?: string; institution?: string }; fundingAmount?: number; fundingStatus?: string }>>([]);
   useEffect(() => {
     async function loadSubmittedChallenges() {
       if (!currentUser?._id) {
@@ -609,6 +616,10 @@ function Dashboard({ setView }: { setView: (v: View) => void }) {
         return;
       }
       const challenges = response.data || [];
+      setSubmittedChallenges(challenges.filter((challenge) => {
+        const submittedById = (challenge.submittedBy as { _id?: string } | undefined)?._id;
+        return submittedById === currentUser._id;
+      }));
       const count = challenges.filter((challenge) => {
         const submittedById = (challenge.submittedBy as { _id?: string } | undefined)?._id;
         return submittedById === currentUser._id;
@@ -640,6 +651,21 @@ function Dashboard({ setView }: { setView: (v: View) => void }) {
         ))}
       </div>
       <div className="mt-8 rounded-2xl border border-slate-200 bg-white p-6">
+        <h3 className="text-lg font-bold text-slate-950">Your submitted problems</h3>
+        <div className="mt-4 space-y-3">
+          {submittedChallenges.length ? submittedChallenges.map((challenge) => (
+            <div key={challenge._id} className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="font-bold text-slate-800">{challenge.title}</p>
+                <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-bold capitalize text-amber-800">{challenge.status === 'resolved' ? 'Problem Solved' : challenge.status.replaceAll('_', ' ')}</span>
+              </div>
+              <p className="mt-2 text-xs text-slate-500">Priority: {challenge.priority} · University: {challenge.assignedUniversity?.institution || challenge.assignedUniversity?.name || 'Not assigned'}</p>
+              {challenge.fundingStatus === 'approved' && <p className="mt-1 text-xs font-semibold text-emerald-700">Funding approved: ₹{challenge.fundingAmount?.toLocaleString('en-IN')}</p>}
+            </div>
+          )) : <p className="text-sm text-slate-500">Your submitted problems will appear here.</p>}
+        </div>
+      </div>
+      <div className="mt-8 rounded-2xl border border-slate-200 bg-white p-6">
         <p className="text-sm font-bold uppercase tracking-wider text-orange-700">
           Have a local concern?
         </p>
@@ -668,6 +694,10 @@ export default function PortalShell() {
       router.replace("/login");
       return;
     }
+    if ((nextView === "submit" || nextView === "challenges") && role !== "Citizen") {
+      setView(role === "Government" ? "government" : "university");
+      return;
+    }
     setView(nextView);
   };
   useEffect(() => {
@@ -681,10 +711,15 @@ export default function PortalShell() {
         return;
       }
       const userRole = response.data.user.role;
-      const nextRole = userRole === "government" ? "Government" : userRole === "university" ? "University" : userRole === "industry" ? "Industry" : "Citizen";
+      if (!["citizen", "government", "university"].includes(userRole)) {
+        clearAuthToken();
+        router.replace("/login");
+        return;
+      }
+      const nextRole = userRole === "government" ? "Government" : userRole === "university" ? "University" : "Citizen";
       setRole(nextRole);
       setAuthenticated(true);
-      setView(nextRole === "Government" ? "government" : nextRole === "University" ? "university" : nextRole === "Industry" ? "industry" : "citizen");
+      setView(nextRole === "Government" ? "government" : nextRole === "University" ? "university" : "citizen");
     }
     void restoreSession();
   }, [router]);
@@ -704,9 +739,7 @@ export default function PortalShell() {
           ? "Government Dashboard"
           : view === "university"
             ? "University Dashboard"
-            : view === "industry"
-              ? "Industry & Innovation Partners"
-              : "My dashboard";
+                : "My dashboard";
   return (
     <div className="flex min-h-screen bg-slate-50">
       <Sidebar
@@ -726,8 +759,6 @@ export default function PortalShell() {
           <GovernmentDashboard />
         ) : view === "university" ? (
           <UniversityDashboard />
-        ) : view === "industry" ? (
-          <IndustryDashboard />
         ) : (
           <Dashboard setView={guardedSetView} />
         )}

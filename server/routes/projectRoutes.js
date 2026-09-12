@@ -7,6 +7,7 @@ import {
   getProjectById,
   updateProjectStatus,
   updateProjectTeam,
+  updateProjectFaculty,
   updateProjectPartners,
   deleteProject
 } from '../controllers/projectController.js';
@@ -30,6 +31,9 @@ router.patch('/:id/status', updateProjectStatus);
 
 // Update project team members (project-owning university only)
 router.patch('/:id/team', updateProjectTeam);
+
+// Update the faculty mentor (project-owning university only)
+router.patch('/:id/faculty', updateProjectFaculty);
 
 // Update project industry partners (project-owning university or government)
 router.patch('/:id/partners', updateProjectPartners);

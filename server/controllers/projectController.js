@@ -12,6 +12,7 @@ export const createProject = async (req, res, next) => {
       description,
       challenge,
       universityDepartment,
+      facultyMentor,
       projectType,
       solutionSummary,
       objectives,
@@ -47,6 +48,21 @@ export const createProject = async (req, res, next) => {
       });
     }
 
+    if (facultyMentor) {
+      const mentor = await User.findOne({
+        _id: facultyMentor,
+        role: 'university',
+        accountType: 'faculty',
+        institution: user.institution
+      });
+      if (!mentor) {
+        return res.status(400).json({
+          success: false,
+          message: 'Faculty mentor must be a registered faculty member of your university'
+        });
+      }
+    }
+
     // Validate challenge exists
     const challengeDoc = await Challenge.findById(challenge);
     if (!challengeDoc) {
@@ -57,10 +73,16 @@ export const createProject = async (req, res, next) => {
     }
 
     // Verify that the authenticated university is assigned to this challenge
-    if (challengeDoc.assignedUniversity && challengeDoc.assignedUniversity.toString() !== userId) {
+    if (!challengeDoc.assignedUniversity || challengeDoc.assignedUniversity.toString() !== userId) {
       return res.status(403).json({
         success: false,
         message: 'You can only create projects for challenges assigned to your university'
+      });
+    }
+    if (challengeDoc.status !== 'funding_approved') {
+      return res.status(400).json({
+        success: false,
+        message: 'A challenge must have government funding approval before project creation'
       });
     }
 
@@ -99,6 +121,7 @@ export const createProject = async (req, res, next) => {
       createdBy: userId,
       university: userId,
       universityDepartment,
+      facultyMentor: facultyMentor || null,
       projectType,
       solutionSummary,
       expectedImpact,
@@ -121,6 +144,7 @@ export const createProject = async (req, res, next) => {
       { path: 'university', select: 'name email institution universityDepartment' },
       { path: 'challenge', select: 'title category district status' },
       { path: 'teamMembers', select: 'name email institution universityDepartment' },
+      { path: 'facultyMentor', select: 'name email institution universityDepartment accountType' },
       { path: 'industryPartners', select: 'name email organizationName organizationType' }
     ]);
 
@@ -165,6 +189,9 @@ export const getAllProjects = async (req, res, next) => {
     if (challenge) {
       filter.challenge = challenge;
     }
+    if (req.user.role === 'university') {
+      filter.university = req.user.id;
+    }
 
     // Get projects sorted by newest first
     const projects = await Project.find(filter)
@@ -173,6 +200,7 @@ export const getAllProjects = async (req, res, next) => {
         { path: 'university', select: 'name email institution universityDepartment' },
         { path: 'challenge', select: 'title category district status' },
         { path: 'teamMembers', select: 'name email institution universityDepartment' },
+        { path: 'facultyMentor', select: 'name email institution universityDepartment accountType' },
         { path: 'industryPartners', select: 'name email organizationName organizationType' }
       ])
       .sort({ createdAt: -1 });
@@ -200,6 +228,7 @@ export const getProjectById = async (req, res, next) => {
         { path: 'university', select: 'name email institution universityDepartment' },
         { path: 'challenge', select: 'title category district status description' },
         { path: 'teamMembers', select: 'name email institution universityDepartment accountType' },
+        { path: 'facultyMentor', select: 'name email institution universityDepartment accountType' },
         { path: 'industryPartners', select: 'name email organizationName organizationType expertise' }
       ]);
 
@@ -207,6 +236,13 @@ export const getProjectById = async (req, res, next) => {
       return res.status(404).json({
         success: false,
         message: 'Project not found'
+      });
+    }
+
+    if (req.user.role === 'university' && project.university.toString() !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have access to this project'
       });
     }
 
@@ -293,6 +329,19 @@ export const updateProjectStatus = async (req, res, next) => {
           message: 'Universities can only update to: prototype, testing, deployed, or completed'
         });
       }
+      const allowedTransitions = {
+        proposed: ['prototype'],
+        prototype: ['testing'],
+        testing: ['deployed', 'completed'],
+        deployed: ['completed'],
+        completed: ['completed']
+      };
+      if (!allowedTransitions[project.status]?.includes(status)) {
+        return res.status(400).json({
+          success: false,
+          message: `Cannot change project status from ${project.status} to ${status}`
+        });
+      }
     }
 
     // Update project
@@ -309,11 +358,16 @@ export const updateProjectStatus = async (req, res, next) => {
         { path: 'industryPartners', select: 'name email organizationName' }
       ]);
 
+    if (status === 'completed') {
+      await Challenge.findByIdAndUpdate(project.challenge, { status: 'resolved' });
+    }
+
     res.status(200).json({
       success: true,
       message: 'Project status updated successfully',
       data: updatedProject
     });
+
   } catch (error) {
     if (error.kind === 'ObjectId') {
       return res.status(404).json({
@@ -372,7 +426,12 @@ export const updateProjectTeam = async (req, res, next) => {
     }
 
     // Verify all users exist
-    const users = await User.find({ _id: { $in: teamMembers } });
+    const owner = await User.findById(userId).select('institution role');
+    const users = await User.find({
+      _id: { $in: teamMembers },
+      role: 'university',
+      institution: owner.institution
+    });
     if (users.length !== teamMembers.length) {
       return res.status(400).json({
         success: false,
@@ -407,6 +466,69 @@ export const updateProjectTeam = async (req, res, next) => {
       });
     }
 
+    next(error);
+  }
+};
+
+// @desc    Update the faculty mentor for a project
+// @route   PATCH /api/projects/:id/faculty
+// @access  Private - Project-owning university only
+export const updateProjectFaculty = async (req, res, next) => {
+  try {
+    const { facultyMentor } = req.body;
+    const user = await User.findById(req.user.id);
+    if (!user || user.role !== 'university') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only university users can assign a faculty mentor'
+      });
+    }
+
+    const project = await Project.findById(req.params.id);
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        message: 'Project not found'
+      });
+    }
+    if (project.university.toString() !== user._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only the project-owning university can assign a faculty mentor'
+      });
+    }
+
+    const mentor = await User.findOne({
+      _id: facultyMentor,
+      role: 'university',
+      accountType: 'faculty',
+      institution: user.institution
+    });
+    if (!mentor) {
+      return res.status(400).json({
+        success: false,
+        message: 'Faculty mentor must be a registered faculty member of your university'
+      });
+    }
+
+    const updatedProject = await Project.findByIdAndUpdate(
+      project._id,
+      { facultyMentor: mentor._id },
+      { new: true, runValidators: true }
+    ).populate('facultyMentor', 'name email institution universityDepartment accountType');
+
+    res.status(200).json({
+      success: true,
+      message: 'Faculty mentor assigned successfully',
+      data: updatedProject
+    });
+  } catch (error) {
+    if (error.kind === 'ObjectId') {
+      return res.status(404).json({
+        success: false,
+        message: 'Project or faculty mentor not found'
+      });
+    }
     next(error);
   }
 };
