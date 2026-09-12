@@ -113,7 +113,7 @@ export default function SahayakChat({ onNavigate }: { onNavigate: (view: View) =
 
   return (
     <>
-      <section className={`fixed inset-x-4 bottom-24 z-50 flex max-h-[min(680px,calc(100vh-7rem))] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl transition duration-200 sm:inset-auto sm:bottom-24 sm:right-6 sm:w-[min(410px,calc(100vw-2rem))] ${isOpen ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-3 opacity-0"}`} aria-label="Sahayak chat" aria-hidden={!isOpen} inert={!isOpen ? true : undefined}>
+      <section className={`mobile-sahayak-window fixed inset-x-4 bottom-24 z-50 flex max-h-[min(680px,calc(100vh-7rem))] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl transition duration-200 sm:inset-auto sm:bottom-24 sm:right-6 sm:w-[min(410px,calc(100vw-2rem))] ${isOpen ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-3 opacity-0"}`} aria-label="Sahayak chat" aria-hidden={!isOpen} inert={!isOpen ? true : undefined}>
           <header className="flex items-start justify-between gap-2 bg-emerald-900 px-3 py-3 text-white sm:gap-3 sm:px-4 sm:py-4">
             <div className="flex min-w-0 items-center gap-2 sm:gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-orange-400 text-emerald-950"><Bot className="size-5" /></span><div className="min-w-0"><h2 className="font-bold">Sahayak</h2><p className="break-words text-xs text-emerald-100">Your AI assistant for the Jharkhand Innovation Portal</p></div></div>
             <div className="flex shrink-0 items-center gap-1"><label className="sr-only" htmlFor="sahayak-language">Language</label><select id="sahayak-language" value={language} onChange={(event) => setLanguage(event.target.value as "en" | "hi")} className="max-w-[84px] rounded-md border-0 bg-white/10 px-1 py-1 text-xs text-white outline-none [&>option]:text-slate-900"><option value="en">English</option><option value="hi">हिंदी</option></select><button onClick={() => setIsOpen(false)} aria-label="Close Sahayak" className="rounded-lg p-2 hover:bg-white/10"><X className="size-5" /></button></div>
@@ -142,7 +142,7 @@ export default function SahayakChat({ onNavigate }: { onNavigate: (view: View) =
             </form>
           </div>
       </section>
-      <button onClick={() => setIsOpen((current) => !current)} aria-expanded={isOpen} aria-label={isOpen ? "Close Sahayak" : "Open Sahayak assistant"} className="fixed bottom-5 right-5 z-50 flex items-center gap-2 rounded-full bg-emerald-900 px-4 py-3 text-sm font-bold text-white shadow-xl transition hover:-translate-y-0.5 hover:bg-emerald-950 focus:outline-none focus:ring-4 focus:ring-emerald-700/25 sm:right-6"><Sparkles className="size-4 text-orange-300" />Sahayak<ChevronDown className={`size-4 transition-transform ${isOpen ? "rotate-180" : ""}`} /></button>
+      <button onClick={() => setIsOpen((current) => !current)} aria-expanded={isOpen} aria-label={isOpen ? "Close Sahayak" : "Open Sahayak assistant"} className="mobile-sahayak-trigger fixed bottom-5 right-5 z-50 flex items-center gap-2 rounded-full bg-emerald-900 px-4 py-3 text-sm font-bold text-white shadow-xl transition hover:-translate-y-0.5 hover:bg-emerald-950 focus:outline-none focus:ring-4 focus:ring-emerald-700/25 sm:right-6"><Sparkles className="size-4 text-orange-300" />Sahayak<ChevronDown className={`size-4 transition-transform ${isOpen ? "rotate-180" : ""}`} /></button>
     </>
   );
 }

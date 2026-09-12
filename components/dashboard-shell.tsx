@@ -37,7 +37,7 @@ function JharkhandOutline() {
 
 export function DashboardHero({ eyebrow, title, greeting, subtitle, actions, showCitizenTagline = false }: Omit<DashboardShellProps, 'stats' | 'children'>) {
   return (
-    <section className="relative min-w-0 overflow-hidden rounded-[2rem] bg-[#06245C] px-5 py-7 pb-40 text-white shadow-lg sm:px-10 sm:py-10 sm:pb-44 md:pb-10">
+    <section className="mobile-dashboard-hero relative min-w-0 overflow-hidden rounded-[2rem] bg-[#06245C] px-5 py-7 pb-40 text-white shadow-lg sm:px-10 sm:py-10 sm:pb-44 md:pb-10">
       <div className="relative z-10 max-w-2xl md:max-w-[60%]">
         <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-blue-200">{eyebrow}</p>
         <h2 className="mt-3 break-words text-3xl font-bold tracking-tight sm:text-4xl">{title}</h2>
@@ -61,7 +61,7 @@ export function DashboardStats({ stats }: { stats: DashboardStat[] }) {
   return (
     <div className="grid gap-4 md:grid-cols-3">
       {stats.slice(0, 3).map(({ label, value, note, icon: Icon }) => (
-        <article key={label} className="rounded-2xl border border-[#DDE3EA] bg-white p-5 shadow-sm">
+        <article key={label} className="mobile-dashboard-stat rounded-2xl border border-[#DDE3EA] bg-white p-5 shadow-sm">
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-sm font-medium text-[#4B5563]">{label}</p>
@@ -80,7 +80,7 @@ export function DashboardStats({ stats }: { stats: DashboardStat[] }) {
 
 export function DashboardSection({ eyebrow, title, children, action }: { eyebrow: string; title: string; children: React.ReactNode; action?: React.ReactNode }) {
   return (
-    <section className="rounded-2xl border border-[#DDE3EA] bg-white p-6 shadow-sm">
+    <section className="mobile-dashboard-section rounded-2xl border border-[#DDE3EA] bg-white p-6 shadow-sm">
       <div className="mb-5 flex items-end justify-between gap-4">
         <div>
           <p className="text-[11px] font-bold uppercase tracking-wider text-[#E31E24]">{eyebrow}</p>
@@ -95,7 +95,7 @@ export function DashboardSection({ eyebrow, title, children, action }: { eyebrow
 
 export default function DashboardShell({ eyebrow, title, greeting, subtitle, stats, children, actions, showCitizenTagline }: DashboardShellProps) {
   return (
-    <main className="min-h-full bg-[#F5F7FA] p-5 sm:p-8">
+    <main className="mobile-dashboard-shell min-h-full bg-[#F5F7FA] p-5 sm:p-8">
       <div className="mx-auto max-w-[1450px]">
         <DashboardHero eyebrow={eyebrow} title={title} greeting={greeting} subtitle={subtitle} actions={actions} showCitizenTagline={showCitizenTagline} />
         <div className="mt-6">

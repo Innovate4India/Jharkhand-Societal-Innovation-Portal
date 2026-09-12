@@ -228,7 +228,7 @@ function Topbar({
 }) {
   const [showMenu, setShowMenu] = useState(false);
   return (
-    <header className="flex h-20 min-w-0 items-center justify-between gap-2 border-b border-slate-200 bg-white px-3 sm:px-8">
+    <header className="mobile-portal-header flex h-20 min-w-0 items-center justify-between gap-2 border-b border-slate-200 bg-white px-3 sm:px-8">
       <div className="flex min-w-0 flex-1 items-center gap-3">
         {!open && (
           <button
