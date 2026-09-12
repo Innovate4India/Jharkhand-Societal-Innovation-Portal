@@ -547,3 +547,36 @@ html.dark body textarea::placeholder {
     display: none;
   }
 }
+
+.typewriter-text {
+  display: inline-block;
+  overflow: hidden;
+  white-space: nowrap;
+  max-width: 0;
+  border-right: 2px solid currentColor;
+  animation:
+    typewriter 4s steps(30, end) forwards,
+    typewriter-caret 0.7s step-end infinite;
+}
+
+@keyframes typewriter {
+  0% {
+    max-width: 0;
+  }
+  70% {
+    max-width: 100%;
+  }
+  100% {
+    max-width: 100%;
+  }
+}
+
+@keyframes typewriter-caret {
+  0%,
+  100% {
+    border-color: transparent;
+  }
+  50% {
+    border-color: currentColor;
+  }
+}

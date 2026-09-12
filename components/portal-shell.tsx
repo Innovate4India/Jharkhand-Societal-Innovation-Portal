@@ -335,8 +335,10 @@ function Home({ setView }: { setView: (v: View) => void }) {
           <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[#06245C]/20" />
           <div className="relative z-10">
             <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-orange-200/30 bg-[#0B2D6B]/80 px-3 py-1.5 text-xs font-bold text-orange-100">
-              <span className="size-1.5 rounded-full bg-orange-500" />A platform
-              for collective action
+              {/* <span className="size-1.5 rounded-full bg-orange-500" />A platform
+              for collective action */}
+              <span className="size-1.5 rounded-full bg-orange-500" />
+<span className="typewriter-text">A platform for collective action</span>
             </div>
             <h1 className="max-w-2xl text-balance text-5xl font-bold tracking-tight text-white sm:text-6xl">
               Local problems.
