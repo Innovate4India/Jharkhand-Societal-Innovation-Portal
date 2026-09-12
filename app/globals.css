@@ -356,6 +356,11 @@ html.dark body textarea::placeholder {
 }
 
 @media (max-width: 640px) {
+  .home-hero {
+    background-position: 62% center;
+    border-radius: 1.25rem;
+  }
+
   .mobile-sidebar-logout {
     display: flex;
   }

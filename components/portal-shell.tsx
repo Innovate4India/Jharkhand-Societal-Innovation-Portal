@@ -326,20 +326,26 @@ function Home({ setView }: { setView: (v: View) => void }) {
         </div>
       </header>
       <main>
-        <section className="mx-auto grid max-w-7xl items-center gap-12 px-5 py-16 sm:px-10 lg:grid-cols-[1.05fr_.95fr] lg:py-24">
-          <div>
-            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-bold text-orange-800">
+        <section className="home-hero relative mx-auto max-w-4xl overflow-hidden rounded-3xl bg-[#06245C] px-5 py-16 text-white sm:px-10 lg:py-24">
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 bg-cover bg-center opacity-20"
+            style={{ backgroundImage: "url('/images/jharkhand-statue.jpg')" }}
+          />
+          <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[#06245C]/85" />
+          <div className="relative z-10">
+            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-orange-200/30 bg-[#0B2D6B]/80 px-3 py-1.5 text-xs font-bold text-orange-100">
               <span className="size-1.5 rounded-full bg-orange-500" />A platform
               for collective action
             </div>
-            <h1 className="max-w-2xl text-balance text-5xl font-bold tracking-tight text-slate-950 sm:text-6xl">
+            <h1 className="max-w-2xl text-balance text-5xl font-bold tracking-tight text-white sm:text-6xl">
               Local problems.
               <br />
-              <span className="text-emerald-800">Shared solutions.</span>
+              <span className="text-emerald-200">Shared solutions.</span>
             </h1>
-            <p className="mt-6 max-w-xl text-lg leading-8 text-slate-600">
-              A trusted space where citizens, government, universities and
-              industries come together to create a more resilient Jharkhand.
+            <p className="mt-6 max-w-xl text-lg leading-8 text-blue-100">
+              A trusted space where citizens, government and universities come
+              together to create a more resilient Jharkhand.
             </p>
             <div className="mt-9 flex flex-wrap gap-3">
               <button
@@ -350,27 +356,10 @@ function Home({ setView }: { setView: (v: View) => void }) {
               </button>
               <button
                 onClick={() => setView("challenges")}
-                className="rounded-lg border border-slate-300 bg-white px-5 py-3 text-sm font-bold text-slate-700"
+                className="rounded-lg border border-white/30 bg-white/10 px-5 py-3 text-sm font-bold text-white"
               >
                 Explore challenges
               </button>
-            </div>
-          </div>
-          <div className="rounded-3xl bg-emerald-900 p-8 text-white">
-            <p className="text-sm font-medium text-emerald-200">
-              A growing movement
-            </p>
-            <p className="mt-3 text-5xl font-bold">24</p>
-            <p className="mt-1 text-emerald-100">districts connected</p>
-            <div className="mt-10 grid grid-cols-2 gap-4 border-t border-emerald-700 pt-5 text-sm">
-              <div>
-                <strong className="block text-2xl">186</strong>
-                <span className="text-emerald-200">solutions received</span>
-              </div>
-              <div>
-                <strong className="block text-2xl">61</strong>
-                <span className="text-emerald-200">problems resolved</span>
-              </div>
             </div>
           </div>
         </section>

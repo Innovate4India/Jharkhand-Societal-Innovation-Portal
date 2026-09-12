@@ -4,7 +4,7 @@ import './globals.css'
 
 export const metadata: Metadata = {
   title: 'Jharkhand Societal Innovation Portal',
-  description: 'A trusted platform connecting communities, government, universities and industries to solve real-world problems in Jharkhand.',
+  description: 'A trusted platform connecting communities, government and universities to solve real-world problems in Jharkhand.',
   generator: 'v0.app',
   icons: {
     icon: [
