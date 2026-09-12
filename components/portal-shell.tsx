@@ -11,6 +11,7 @@ import {
   FileText,
   Flag,
   LayoutDashboard,
+  LogOut,
   PanelLeftClose,
   PanelLeftOpen,
   Search,
@@ -92,6 +93,7 @@ function Sidebar({
   open,
   setOpen,
   onGovernmentAction,
+  onLogout,
 }: {
   view: View;
   setView: (v: View) => void;
@@ -99,6 +101,7 @@ function Sidebar({
   open: boolean;
   setOpen: (v: boolean) => void;
   onGovernmentAction: (action: string) => void;
+  onLogout: () => void;
 }) {
   return (
     <aside
@@ -201,6 +204,14 @@ function Sidebar({
           </>
         )}
       </nav>
+      <button
+        type="button"
+        onClick={onLogout}
+        className="mobile-sidebar-logout mt-4 min-h-11 items-center gap-3 rounded-xl border border-red-300/30 px-3 py-3 text-left text-sm font-semibold text-red-100 transition hover:bg-red-500/20 hover:text-white"
+      >
+        <LogOut className="size-4" />
+        Logout
+      </button>
       <div className="mt-auto rounded-2xl border border-white/10 bg-[#0B2D6B] p-4">
         <ShieldCheck className="size-5 text-red-200" />
         <p className="mt-3 text-sm font-semibold text-white">
@@ -857,6 +868,7 @@ export default function PortalShell() {
           window.setTimeout(() => setGovernmentAction(nextAction), 0)
           setView("government")
         }}
+        onLogout={handleLogout}
       />
       {open && (
         <button

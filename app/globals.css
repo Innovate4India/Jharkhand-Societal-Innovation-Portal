@@ -356,6 +356,10 @@ html.dark body textarea::placeholder {
 }
 
 @media (max-width: 640px) {
+  .mobile-sidebar-logout {
+    display: flex;
+  }
+
   .mobile-portal-header {
     height: 4rem;
     padding-left: 0.75rem;
@@ -530,5 +534,11 @@ html.dark body textarea::placeholder {
     max-width: calc(100vw - 1rem);
     max-height: calc(100vh - 1rem);
     padding: 1rem;
+  }
+}
+
+@media (min-width: 641px) {
+  .mobile-sidebar-logout {
+    display: none;
   }
 }
