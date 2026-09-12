@@ -1,6 +1,7 @@
 import express from 'express';
 import authMiddleware from '../middleware/authMiddleware.js';
 import { authorizeRoles } from '../middleware/roleMiddleware.js';
+import { parseChallengeUpload } from '../middleware/challengeUpload.js';
 import {
   createChallenge,
   acceptChallenge,
@@ -10,7 +11,8 @@ import {
   updateChallengePriority,
   assignChallenge,
   approveChallengeFunding,
-  deleteChallenge
+  deleteChallenge,
+  downloadChallengeAttachment
 } from '../controllers/challengeController.js';
 
 const router = express.Router();
@@ -19,7 +21,7 @@ const router = express.Router();
 router.use(authMiddleware);
 
 // Create a new challenge (citizens only)
-router.post('/', createChallenge);
+router.post('/', parseChallengeUpload, createChallenge);
 
 // Accept an assigned challenge (university only)
 router.patch('/:id/accept', authorizeRoles('university'), acceptChallenge);
@@ -29,6 +31,7 @@ router.get('/', getAllChallenges);
 
 // Get a single challenge
 router.get('/:id', getChallengeById);
+router.get('/:id/attachments/:attachmentId', downloadChallengeAttachment);
 
 // Update challenge status (government only)
 router.patch('/:id/status', authorizeRoles('government'), updateChallengeStatus);

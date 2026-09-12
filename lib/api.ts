@@ -8,16 +8,14 @@ export async function apiCall<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<ApiResponse<T>> {
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-    ...options.headers,
-  };
+  const headers = new Headers(options.headers);
+  if (!(typeof FormData !== 'undefined' && options.body instanceof FormData)) {
+    headers.set('Content-Type', 'application/json');
+  }
 
   // Attach JWT token if it exists
   const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
+  if (token) headers.set('Authorization', `Bearer ${token}`);
 
   try {
     const response = await fetch(endpoint, {
@@ -125,6 +123,8 @@ export async function getChallenges() {
     createdAt?: string;
     submittedBy?: { _id?: string; name?: string; email?: string; role?: string };
     assignedUniversity?: { _id?: string; name?: string; email?: string; institution?: string; universityDepartment?: string };
+    citizenContactNumber?: string;
+    attachments?: { _id: string; originalName: string; mimeType: string; size: number; uploadedAt?: string }[];
   }>>('/api/challenges', {
     method: 'GET',
   });
@@ -153,6 +153,18 @@ export async function getUniversityParticipation() {
     completed: number;
     status: 'Active' | 'Registered';
   }>>('/api/users/university-participation', { method: 'GET' });
+}
+
+export type GovernmentAnalytics = {
+  challenges: { total: number; underReview: number; approved: number; assigned: number; fundingApproved: number; inProgress: number; resolved: number };
+  projects: { total: number; proposed: number; prototype: number; testing: number; deployed: number; completed: number };
+  universities: { total: number; withAssignedChallenges: number; withActiveProjects: number };
+  impact: { solutionsDeployed: number; communitiesResolved: number; studentsInvolved: number; facultyMentors: number };
+  funding: { approvedAmount: number; fundedCount: number };
+};
+
+export async function getGovernmentAnalytics() {
+  return apiCall<GovernmentAnalytics>('/api/dashboard/analytics', { method: 'GET' });
 }
 
 export async function getUniversityMembers() {
@@ -338,6 +350,8 @@ export async function getChallengeById(id: string) {
     createdAt?: string;
     submittedBy?: { name?: string; email?: string; role?: string; district?: string; villageOrCity?: string };
     assignedUniversity?: { name?: string; email?: string; institution?: string; universityDepartment?: string };
+    citizenContactNumber?: string;
+    attachments?: { _id: string; originalName: string; mimeType: string; size: number; uploadedAt?: string }[];
     location?: { latitude?: number | null; longitude?: number | null };
     media?: { images?: { url?: string }[]; videos?: { url?: string }[]; documents?: { url?: string; fileName?: string }[] };
     aiAnalysis?: { category?: string; priority?: string; summary?: string; analyzedAt?: string };
@@ -353,17 +367,46 @@ export async function createChallenge(challengeData: {
   district: string;
   villageOrCity: string;
   priority?: 'low' | 'medium' | 'high' | 'critical';
+  citizenContactNumber?: string;
   location?: { latitude: number; longitude: number };
   media?: { images?: { url: string }[]; videos?: { url: string }[]; documents?: { url: string; fileName: string }[] };
-}) {
+}, files: File[] = []) {
+  const body = files.length
+    ? (() => {
+      const formData = new FormData();
+      Object.entries(challengeData).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) formData.append(key, typeof value === 'object' ? JSON.stringify(value) : String(value));
+      });
+      files.forEach((file) => formData.append('files', file));
+      return formData;
+    })()
+    : JSON.stringify(challengeData);
   return apiCall<{
     _id: string;
     title: string;
     status: string;
   }>('/api/challenges', {
     method: 'POST',
-    body: JSON.stringify(challengeData),
+    body,
   });
+}
+
+export async function downloadChallengeAttachment(challengeId: string, attachmentId: string, fileName: string) {
+  const token = getAuthToken();
+  const response = await fetch(`/api/challenges/${encodeURIComponent(challengeId)}/attachments/${encodeURIComponent(attachmentId)}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  });
+  if (!response.ok) {
+    let message = `HTTP Error: ${response.status}`;
+    try { message = (await response.json()).message || message; } catch {}
+    throw new Error(message);
+  }
+  const url = URL.createObjectURL(await response.blob());
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 export async function acceptChallenge(id: string) {

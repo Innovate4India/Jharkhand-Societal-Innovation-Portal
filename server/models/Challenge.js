@@ -60,6 +60,11 @@ const challengeSchema = new mongoose.Schema(
       ref: 'User',
       required: [true, 'Challenge must be submitted by a user']
     },
+    citizenContactNumber: {
+      type: String,
+      select: false,
+      match: [/^[6-9]\d{9}$/, 'Contact number must be a valid 10-digit Indian mobile number']
+    },
 
     // Status tracking
     status: {
@@ -121,6 +126,39 @@ const challengeSchema = new mongoose.Schema(
         }
       ]
     },
+
+    attachments: [
+      {
+        originalName: {
+          type: String,
+          required: true,
+          trim: true
+        },
+        storedName: {
+          type: String,
+          required: true,
+          select: false
+        },
+        mimeType: {
+          type: String,
+          required: true
+        },
+        size: {
+          type: Number,
+          required: true,
+          min: 1
+        },
+        uploadedBy: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'User',
+          required: true
+        },
+        uploadedAt: {
+          type: Date,
+          default: Date.now
+        }
+      }
+    ],
 
     // AI Analysis (optional - for future implementation)
     aiAnalysis: {

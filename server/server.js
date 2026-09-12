@@ -10,6 +10,7 @@ import projectRoutes from './routes/projectRoutes.js';
 import collaborationRoutes from './routes/collaborationRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import sahayakRoutes from './routes/sahayakRoutes.js';
+import dashboardRoutes from './routes/dashboardRoutes.js';
 
 // Load environment variables
 dotenv.config();
@@ -33,6 +34,7 @@ app.use('/api/projects', projectRoutes);
 app.use('/api/collaborations', collaborationRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/sahayak', sahayakRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 // 404 Middleware
 app.use(notFound);

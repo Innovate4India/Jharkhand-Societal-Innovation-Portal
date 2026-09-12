@@ -172,6 +172,13 @@ export const createProject = async (req, res, next) => {
 // @access  Private
 export const getAllProjects = async (req, res, next) => {
   try {
+    if (req.user.role !== 'government' && req.user.role !== 'university') {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have access to project management data'
+      });
+    }
+
     const { status, projectType, university, challenge } = req.query;
 
     // Build filter object
@@ -239,7 +246,25 @@ export const getProjectById = async (req, res, next) => {
       });
     }
 
-    if (req.user.role === 'university' && project.university.toString() !== req.user.id) {
+    if (req.user.role === 'citizen') {
+      return res.status(403).json({
+        success: false,
+        message: 'Citizens cannot access university project details'
+      });
+    }
+
+    const projectUniversityId = typeof project.university === 'string'
+      ? project.university
+      : project.university?._id?.toString?.() || project.university?.toString?.();
+
+    if (req.user.role === 'university' && projectUniversityId !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have access to this project'
+      });
+    }
+
+    if (req.user.role !== 'government' && req.user.role !== 'university') {
       return res.status(403).json({
         success: false,
         message: 'You do not have access to this project'

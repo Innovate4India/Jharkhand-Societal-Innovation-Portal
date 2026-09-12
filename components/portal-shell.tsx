@@ -8,14 +8,16 @@ import {
   CheckCircle2,
   ChevronDown,
   FilePlus2,
+  FileText,
   Flag,
   LayoutDashboard,
-  Menu,
+  PanelLeftClose,
+  PanelLeftOpen,
   Search,
   ShieldCheck,
   Sparkles,
   UploadCloud,
-  X,
+  Users,
 } from "lucide-react";
 import ThemeToggle from "@/components/theme-toggle";
 import {
@@ -32,6 +34,7 @@ import ChallengesPage from "@/components/challenges-page";
 import GovernmentDashboard from "@/components/government-dashboard";
 import UniversityDashboard from "@/components/university-dashboard";
 import SahayakChat from "@/components/sahayak-chat";
+import DashboardShell from "@/components/dashboard-shell";
 
 type View =
   | "home"
@@ -88,18 +91,22 @@ function Sidebar({
   role,
   open,
   setOpen,
+  onGovernmentAction,
 }: {
   view: View;
   setView: (v: View) => void;
   role: Role;
   open: boolean;
   setOpen: (v: boolean) => void;
+  onGovernmentAction: (action: string) => void;
 }) {
   return (
     <aside
       className={cn(
-        "fixed inset-y-0 left-0 z-40 flex w-72 flex-col border-r border-slate-200 bg-white px-5 py-6 transition-transform lg:static lg:translate-x-0",
-        open ? "translate-x-0" : "-translate-x-full",
+        "fixed inset-y-0 left-0 z-40 flex w-72 shrink-0 flex-col overflow-hidden border-r border-[#123F8C] bg-[#06245C] px-5 py-6 text-white transition-[width,transform,padding,border] duration-250 ease-in-out lg:static lg:translate-x-0",
+        open
+          ? "translate-x-0"
+          : "-translate-x-full border-r-0 px-0 lg:w-0 lg:translate-x-0",
       )}
     >
       <div className="flex items-center justify-between">
@@ -107,29 +114,30 @@ function Sidebar({
           onClick={() => setView("home")}
           className="flex items-center gap-3 text-left"
         >
-          <span className="grid size-10 place-items-center rounded-xl bg-emerald-800 text-white">
+          <span className="grid size-10 place-items-center rounded-xl bg-[#E31E24] text-white">
             <Sparkles className="size-5" />
           </span>
           <span>
-            <strong className="block text-sm text-slate-950">Jharkhand</strong>
-            <span className="block text-xs font-medium text-emerald-700">
+            <strong className="block text-sm text-white">Jharkhand</strong>
+            <span className="block text-xs font-medium text-blue-200">
               Innovation Portal
             </span>
           </span>
         </button>
         <button
-          className="lg:hidden"
+          className="grid size-9 place-items-center rounded-lg text-white/80 transition hover:bg-[#0B2D6B] hover:text-white"
           onClick={() => setOpen(false)}
-          aria-label="Close menu"
+          aria-label="Collapse sidebar"
+          title="Collapse sidebar"
         >
-          <X className="size-5" />
+          <PanelLeftClose className="size-5" />
         </button>
       </div>
-      <div className="mt-9 rounded-xl bg-slate-50 p-3">
-        <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+      <div className="mt-9 rounded-xl bg-[#0B2D6B] p-3">
+        <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-blue-200">
           Signed in as
         </p>
-        <p className="text-sm font-semibold text-slate-800">{role}</p>
+        <p className="text-sm font-semibold text-white">{role}</p>
       </div>
       <nav className="mt-8 flex flex-col gap-2">
         <button
@@ -137,8 +145,8 @@ function Sidebar({
           className={cn(
             "flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium",
             (view === "citizen" || view === "government" || view === "university")
-              ? "bg-emerald-800 text-white"
-              : "text-slate-600 hover:bg-slate-50",
+              ? "bg-[#E31E24] text-white"
+              : "text-white/80 hover:bg-[#0B2D6B] hover:text-white",
           )}
         >
           <LayoutDashboard className="size-4" />
@@ -151,7 +159,7 @@ function Sidebar({
               className={cn(
                 "flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium",
                 view === "challenges"
-                  ? "bg-emerald-800 text-white"
+                  ? "bg-[#E31E24] text-white"
                   : "text-slate-600 hover:bg-slate-50",
               )}
             >
@@ -163,7 +171,7 @@ function Sidebar({
               className={cn(
                 "flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium",
                 view === "submit"
-                  ? "bg-emerald-800 text-white"
+                  ? "bg-[#E31E24] text-white"
                   : "text-slate-600 hover:bg-slate-50",
               )}
             >
@@ -172,13 +180,33 @@ function Sidebar({
             </button>
           </>
         )}
+        {role === "Government" && (
+          <>
+            {["Review challenges", "Assign university", "Funding", "Projects", "Analytics"].map((label) => (
+              <button key={label} onClick={() => onGovernmentAction(label)} className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-white/80 hover:bg-[#0B2D6B] hover:text-white">
+                <Flag className="size-4" />
+                {label}
+              </button>
+            ))}
+          </>
+        )}
+        {role === "University" && (
+          <>
+            {["Assigned challenges", "Projects", "Faculty mentors", "Student teams", "Progress tracking", "Completed solutions"].map((label) => (
+              <button key={label} onClick={() => setView("university")} className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-white/80 hover:bg-[#0B2D6B] hover:text-white">
+                <Flag className="size-4" />
+                {label}
+              </button>
+            ))}
+          </>
+        )}
       </nav>
-      <div className="mt-auto rounded-2xl bg-emerald-50 p-4">
-        <ShieldCheck className="size-5 text-emerald-700" />
-        <p className="mt-3 text-sm font-semibold text-emerald-950">
+      <div className="mt-auto rounded-2xl border border-white/10 bg-[#0B2D6B] p-4">
+        <ShieldCheck className="size-5 text-red-200" />
+        <p className="mt-3 text-sm font-semibold text-white">
           Build a better Jharkhand
         </p>
-        <p className="mt-1 text-xs leading-5 text-emerald-800/75">
+        <p className="mt-1 text-xs leading-5 text-blue-100">
           Share an idea, collaborate, and make a measurable difference.
         </p>
       </div>
@@ -187,11 +215,13 @@ function Sidebar({
 }
 function Topbar({
   title,
+  open,
   setOpen,
   userName,
   onLogout,
 }: {
   title: string;
+  open: boolean;
   setOpen: (v: boolean) => void;
   userName?: string;
   onLogout: () => void;
@@ -200,13 +230,16 @@ function Topbar({
   return (
     <header className="flex h-20 items-center justify-between border-b border-slate-200 bg-white px-5 sm:px-8">
       <div className="flex items-center gap-3">
-        <button
-          className="lg:hidden"
-          onClick={() => setOpen(true)}
-          aria-label="Open menu"
-        >
-          <Menu className="size-5" />
-        </button>
+        {!open && (
+          <button
+            className="grid size-9 place-items-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+            onClick={() => setOpen(true)}
+            aria-label="Open sidebar"
+            title="Open sidebar"
+          >
+            <PanelLeftOpen className="size-5" />
+          </button>
+        )}
         <div>
           <p className="text-xs font-medium text-slate-400">
             Jharkhand Societal Innovation Portal
@@ -354,13 +387,15 @@ function Home({ setView }: { setView: (v: View) => void }) {
 
 function Submit({ setView }: { setView: (v: View) => void }) {
   const [submitted, setSubmitted] = useState(false);
-  const [submittedChallenge, setSubmittedChallenge] = useState<{ id: string; status: string } | null>(null);
+  const [submittedChallenge, setSubmittedChallenge] = useState<{ id: string; status: string; files: string[] } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("");
   const [district, setDistrict] = useState("");
+  const [contactNumber, setContactNumber] = useState("");
   const [urgency, setUrgency] = useState("Medium");
   const [touched, setTouched] = useState(false);
   const required =
@@ -372,6 +407,10 @@ function Submit({ setView }: { setView: (v: View) => void }) {
     const formData = new FormData(e.currentTarget);
     const villageOrCity = String(formData.get('villageOrCity') || '').trim();
     if (required || !villageOrCity || submitting) return;
+    if (contactNumber && !/^[6-9]\d{9}$/.test(contactNumber)) {
+      setError('Enter a valid 10-digit Indian mobile number.');
+      return;
+    }
 
     const priority = urgency.toLowerCase() as 'low' | 'medium' | 'high' | 'critical';
     if (!['low', 'medium', 'high', 'critical'].includes(priority)) return;
@@ -383,14 +422,15 @@ function Submit({ setView }: { setView: (v: View) => void }) {
       district,
       villageOrCity,
       priority,
-    });
+      ...(contactNumber ? { citizenContactNumber: contactNumber } : {}),
+    }, selectedFiles);
     setSubmitting(false);
     if (!response.success) {
       setError(response.message || 'Unable to submit challenge. Please try again.');
       return;
     }
     if (response.data) {
-      setSubmittedChallenge({ id: response.data._id, status: response.data.status });
+      setSubmittedChallenge({ id: response.data._id, status: response.data.status, files: selectedFiles.map((file) => file.name) });
     }
     setSubmitted(true);
   }
@@ -418,6 +458,12 @@ function Submit({ setView }: { setView: (v: View) => void }) {
               </p>
               <p className="mt-1 font-bold text-slate-950">{submittedChallenge?.id || 'Created successfully'}</p>
             </div>
+            {submittedChallenge?.files.length ? (
+              <div className="mt-4 rounded-xl border border-emerald-100 bg-emerald-50 p-4 text-left">
+                <p className="text-xs font-bold uppercase tracking-wider text-emerald-800">Uploaded files</p>
+                <p className="mt-2 text-sm text-emerald-900">{submittedChallenge.files.join(', ')}</p>
+              </div>
+            ) : null}
             <div>
               <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
                 Current status
@@ -534,15 +580,66 @@ function Submit({ setView }: { setView: (v: View) => void }) {
               </span>
             </label>
             <label className="flex flex-col gap-2 text-sm font-semibold text-slate-700">
+              Contact number
+              <input
+                type="tel"
+                inputMode="numeric"
+                maxLength={10}
+                value={contactNumber}
+                onChange={(event) => setContactNumber(event.target.value.replace(/\D/g, '').slice(0, 10))}
+                className="rounded-lg border border-slate-300 px-4 py-3 font-normal outline-none ring-emerald-700 focus:ring-2"
+                placeholder="Enter your mobile number"
+              />
+              <span className="text-xs font-normal text-slate-500">
+                Government officials may contact you to verify or clarify your submission.
+              </span>
+            </label>
+            <label className="flex flex-col gap-2 text-sm font-semibold text-slate-700">
               Photo, video or document{" "}
-              <span className="flex cursor-not-allowed flex-col items-center gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-5 py-7 text-center">
+              <span className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-5 py-7 text-center">
                 <UploadCloud className="size-6 text-slate-400" />
                 <span className="text-sm font-semibold text-slate-600">
                   Upload supporting files
                 </span>
                 <span className="text-xs font-normal text-slate-400">
-                  Mock upload area · JPG, PNG, PDF or MP4
+                  JPG, JPEG, PNG, PDF or MP4 · up to 25 MB each
                 </span>
+                <input
+                  type="file"
+                  name="files"
+                  multiple
+                  accept=".jpg,.jpeg,.png,.pdf,.mp4,image/jpeg,image/png,application/pdf,video/mp4"
+                  onChange={(event) => {
+                    const files = Array.from(event.target.files || []);
+                    const allowed = /\.(jpe?g|png|pdf|mp4)$/i;
+                    const invalid = files.find((file) => !allowed.test(file.name) || file.size > 25 * 1024 * 1024);
+                    if (invalid) {
+                      setError(`${invalid.name} is unsupported or larger than 25 MB.`);
+                      setSelectedFiles([]);
+                      event.currentTarget.value = '';
+                      return;
+                    }
+                    if (files.length > 5) {
+                      setError('You can upload up to 5 files.');
+                      setSelectedFiles([]);
+                      event.currentTarget.value = '';
+                      return;
+                    }
+                    setError('');
+                    setSelectedFiles(files);
+                  }}
+                  className="block w-full text-sm font-normal text-slate-600"
+                />
+                {selectedFiles.length > 0 && (
+                  <ul className="mt-2 w-full space-y-1 text-left text-xs text-slate-600">
+                    {selectedFiles.map((file, index) => (
+                      <li key={`${file.name}-${file.lastModified}`} className="flex items-center justify-between gap-2 rounded bg-white px-2 py-1">
+                        <span className="truncate">{file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)</span>
+                        <button type="button" onClick={() => setSelectedFiles((current) => current.filter((_, fileIndex) => fileIndex !== index))} className="font-bold text-red-600">Remove</button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </span>
             </label>
             <div className="grid gap-6 sm:grid-cols-2">
@@ -603,7 +700,7 @@ function Submit({ setView }: { setView: (v: View) => void }) {
 function Dashboard({ setView }: { setView: (v: View) => void }) {
   const currentUser = getCurrentUserFromStorage();
   const [submittedCount, setSubmittedCount] = useState<number | null>(null);
-  const [submittedChallenges, setSubmittedChallenges] = useState<Array<{ _id: string; title: string; status: string; priority: string; assignedUniversity?: { name?: string; institution?: string }; fundingAmount?: number; fundingStatus?: string }>>([]);
+  const [submittedChallenges, setSubmittedChallenges] = useState<Array<{ _id: string; title: string; status: string; priority: string; citizenContactNumber?: string; assignedUniversity?: { name?: string; institution?: string }; fundingAmount?: number; fundingStatus?: string }>>([]);
   useEffect(() => {
     async function loadSubmittedChallenges() {
       if (!currentUser?._id) {
@@ -629,28 +726,20 @@ function Dashboard({ setView }: { setView: (v: View) => void }) {
     void loadSubmittedChallenges();
   }, [currentUser?._id]);
   return (
-    <div className="min-h-full bg-slate-50 p-5 sm:p-8">
-      <h2 className="text-2xl font-bold text-slate-950">Good morning, {currentUser?.name || "there"}</h2>
-      <p className="mt-1 text-sm text-slate-500">
-        Here is what is happening with your contributions.
-      </p>
-      <div className="mt-8 grid gap-4 md:grid-cols-3">
-        {[
-          ["Problems submitted", submittedCount === null ? "—" : String(submittedCount), "Based on submitted challenges"],
-          ["Solutions supported", "—", "No data available yet"],
-          ["Impact points", "—", "No data available yet"],
-        ].map(([a, b, c]) => (
-          <div
-            key={a}
-            className="rounded-2xl border border-slate-200 bg-white p-5"
-          >
-            <p className="text-sm text-slate-500">{a}</p>
-            <p className="mt-1 text-3xl font-bold text-slate-950">{b}</p>
-            <p className="mt-2 text-xs font-medium text-emerald-700">{c}</p>
-          </div>
-        ))}
-      </div>
-      <div className="mt-8 rounded-2xl border border-slate-200 bg-white p-6">
+    <DashboardShell
+      eyebrow="Citizen dashboard"
+      title="Your community dashboard"
+      greeting={`Good morning, ${currentUser?.name || "there"}`}
+      subtitle="Here is what is happening with your contributions."
+      stats={[
+        { label: "Problems submitted", value: submittedCount === null ? "—" : String(submittedCount), note: "Based on submitted challenges", icon: FileText },
+        { label: "Solutions supported", value: String(submittedChallenges.filter((challenge) => challenge.assignedUniversity).length), note: "Challenges with university support", icon: Users },
+        { label: "Impact points", value: "0", note: "No impact data available yet", icon: CheckCircle2 },
+      ]}
+      showCitizenTagline
+      actions={<button onClick={() => setView("submit")} className="rounded-lg bg-[#E31E24] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#C8171D]">Submit a problem</button>}
+    >
+      <div className="rounded-2xl border border-slate-200 bg-white p-6">
         <h3 className="text-lg font-bold text-slate-950">Your submitted problems</h3>
         <div className="mt-4 space-y-3">
           {submittedChallenges.length ? submittedChallenges.map((challenge) => (
@@ -660,6 +749,7 @@ function Dashboard({ setView }: { setView: (v: View) => void }) {
                 <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-bold capitalize text-amber-800">{challenge.status === 'resolved' ? 'Problem Solved' : challenge.status.replaceAll('_', ' ')}</span>
               </div>
               <p className="mt-2 text-xs text-slate-500">Priority: {challenge.priority} · University: {challenge.assignedUniversity?.institution || challenge.assignedUniversity?.name || 'Not assigned'}</p>
+              {challenge.citizenContactNumber && <p className="mt-1 text-xs text-slate-500">Contact number: {challenge.citizenContactNumber}</p>}
               {challenge.fundingStatus === 'approved' && <p className="mt-1 text-xs font-semibold text-emerald-700">Funding approved: ₹{challenge.fundingAmount?.toLocaleString('en-IN')}</p>}
             </div>
           )) : <p className="text-sm text-slate-500">Your submitted problems will appear here.</p>}
@@ -679,7 +769,7 @@ function Dashboard({ setView }: { setView: (v: View) => void }) {
           Submit a problem
         </button>
       </div>
-    </div>
+    </DashboardShell>
   );
 }
 
@@ -688,7 +778,13 @@ export default function PortalShell() {
   const [view, setView] = useState<View>("home");
   const [role, setRole] = useState<Role>("Citizen");
   const [authenticated, setAuthenticated] = useState(false);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
+  const [governmentAction, setGovernmentAction] = useState('');
+  useEffect(() => {
+    if (window.matchMedia("(max-width: 1023px)").matches) {
+      setOpen(false);
+    }
+  }, []);
   const guardedSetView = (nextView: View) => {
     if (nextView !== "home" && !authenticated) {
       router.replace("/login");
@@ -748,15 +844,36 @@ export default function PortalShell() {
         role={role}
         open={open}
         setOpen={setOpen}
+        onGovernmentAction={(action) => {
+          const actionMap: Record<string, string> = {
+            "Review challenges": "Review Challenges",
+            "Assign university": "Assign University",
+            Funding: "Funding",
+            Projects: "View Projects",
+            Analytics: "View Analytics",
+          }
+          const nextAction = actionMap[action] || action
+          setGovernmentAction('')
+          window.setTimeout(() => setGovernmentAction(nextAction), 0)
+          setView("government")
+        }}
       />
+      {open && (
+        <button
+          type="button"
+          aria-label="Close sidebar backdrop"
+          onClick={() => setOpen(false)}
+          className="fixed inset-0 z-30 bg-slate-950/40 lg:hidden"
+        />
+      )}
       <div className="flex min-w-0 flex-1 flex-col">
-        <Topbar title={title} setOpen={setOpen} onLogout={handleLogout} />
+        <Topbar title={title} open={open} setOpen={setOpen} onLogout={handleLogout} />
         {view === "submit" ? (
           <Submit setView={guardedSetView} />
         ) : view === "challenges" ? (
           <ChallengesPage setView={guardedSetView} />
         ) : view === "government" ? (
-          <GovernmentDashboard />
+          <GovernmentDashboard requestedAction={governmentAction} />
         ) : view === "university" ? (
           <UniversityDashboard />
         ) : (

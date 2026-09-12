@@ -3,9 +3,9 @@ import http from 'node:http';
 
 const host = process.env.HOST || '127.0.0.1';
 const port = Number.parseInt(process.env.PORT || '8000', 10);
-const apiKey = process.env.OPENAI_API_KEY;
-const baseUrl = (process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/$/, '');
-const model = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+const apiKey = process.env.OPENROUTER_API_KEY;
+const baseUrl = (process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1').replace(/\/$/, '');
+const model = process.env.OPENROUTER_MODEL || 'minimax/minimax-m3';
 
 const responseShape = {
   message: 'string, only for a brief clarification or out-of-scope response',
@@ -51,7 +51,7 @@ function parseJsonContent(content) {
 
 async function generateGuidance(problem, language) {
   if (!apiKey || apiKey === 'replace_with_your_provider_api_key') {
-    const error = new Error('Sahayak requires OPENAI_API_KEY to generate real AI responses');
+    const error = new Error('Sahayak requires OPENROUTER_API_KEY to generate real AI responses');
     error.statusCode = 503;
     throw error;
   }
@@ -63,12 +63,14 @@ async function generateGuidance(problem, language) {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'http://127.0.0.1:3000',
+        'X-Title': 'Jharkhand Societal Innovation Portal Sahayak'
       },
       body: JSON.stringify({
         model,
         temperature: 0.2,
-        response_format: { type: 'json_object' },
+        max_tokens: 2048,
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: JSON.stringify({ problem, language }) }
@@ -97,7 +99,12 @@ async function generateGuidance(problem, language) {
 
 const server = http.createServer(async (request, response) => {
   if (request.method === 'GET' && request.url === '/health') {
-    return sendJson(response, 200, { status: 'ok', providerConfigured: Boolean(apiKey && apiKey !== 'replace_with_your_provider_api_key') });
+    return sendJson(response, 200, {
+      status: 'ok',
+      provider: 'openrouter',
+      model,
+      providerConfigured: Boolean(apiKey && apiKey !== 'replace_with_your_provider_api_key')
+    });
   }
   if (request.method !== 'POST' || request.url !== '/chat') {
     return sendJson(response, 404, { detail: 'Not found' });
