@@ -327,11 +327,17 @@ function Home({ setView }: { setView: (v: View) => void }) {
       </header>
       <main>
         <section className="home-hero relative mx-auto max-w-4xl overflow-hidden rounded-3xl bg-[#06245C] px-5 py-16 text-white sm:px-10 lg:py-24">
-          <div
+          {/* <div
             aria-hidden="true"
             className="pointer-events-none absolute inset-0 bg-cover bg-center opacity-20"
             style={{ backgroundImage: "url('/images/jharkhand-statue.jpg')" }}
-          />
+          /> */}
+<div
+  aria-hidden="true"
+  className="pointer-events-none absolute inset-0 bg-cover bg-[center_30%] opacity-20 md:bg-[center_25%]"
+  style={{ backgroundImage: "url('/images/jharkhand-statue.jpg')" }}
+/>
+
           <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[#06245C]/10" />
           <div className="relative z-10">
             <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-orange-200/30 bg-[#0B2D6B]/80 px-3 py-1.5 text-xs font-bold text-orange-100">
