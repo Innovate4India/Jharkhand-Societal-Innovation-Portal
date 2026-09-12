@@ -4,6 +4,13 @@ interface ApiResponse<T> {
   data?: T;
 }
 
+const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/$/, '');
+
+function resolveApiUrl(endpoint: string) {
+  if (/^https?:\/\//i.test(endpoint)) return endpoint;
+  return `${apiBaseUrl}${endpoint}`;
+}
+
 export async function apiCall<T>(
   endpoint: string,
   options: RequestInit = {}
@@ -18,7 +25,7 @@ export async function apiCall<T>(
   if (token) headers.set('Authorization', `Bearer ${token}`);
 
   try {
-    const response = await fetch(endpoint, {
+    const response = await fetch(resolveApiUrl(endpoint), {
       ...options,
       headers,
     });
@@ -393,7 +400,7 @@ export async function createChallenge(challengeData: {
 
 export async function downloadChallengeAttachment(challengeId: string, attachmentId: string, fileName: string) {
   const token = getAuthToken();
-  const response = await fetch(`/api/challenges/${encodeURIComponent(challengeId)}/attachments/${encodeURIComponent(attachmentId)}`, {
+  const response = await fetch(resolveApiUrl(`/api/challenges/${encodeURIComponent(challengeId)}/attachments/${encodeURIComponent(attachmentId)}`), {
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
   });
   if (!response.ok) {

@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import http from 'node:http';
 
-const host = process.env.HOST || '127.0.0.1';
+const host = process.env.HOST || '0.0.0.0';
 const port = Number.parseInt(process.env.PORT || '8000', 10);
 const apiKey = process.env.OPENROUTER_API_KEY;
 const baseUrl = (process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1').replace(/\/$/, '');
@@ -64,7 +64,7 @@ async function generateGuidance(problem, language) {
       headers: {
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
-        'HTTP-Referer': 'http://127.0.0.1:3000',
+        'HTTP-Referer': process.env.FRONTEND_URL || 'http://localhost:3000',
         'X-Title': 'Jharkhand Societal Innovation Portal Sahayak'
       },
       body: JSON.stringify({

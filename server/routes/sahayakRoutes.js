@@ -4,7 +4,7 @@ import authMiddleware from '../middleware/authMiddleware.js';
 const router = express.Router();
 
 function getSahayakApiUrl() {
-  return (process.env.SAHAYAK_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
+  return (process.env.SAHAYAK_API_URL || 'http://localhost:8000').replace(/\/$/, '');
 }
 
 router.post('/chat', authMiddleware, async (req, res, next) => {

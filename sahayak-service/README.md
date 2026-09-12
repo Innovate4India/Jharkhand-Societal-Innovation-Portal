@@ -1,8 +1,8 @@
 # Sahayak AI service
 
 This is the separate AI service used by the portal's existing
-`POST /api/sahayak/chat` integration. It listens on `127.0.0.1:8000` and
-forwards each request to an OpenAI-compatible chat-completions provider.
+`POST /api/sahayak/chat` integration. It listens on `HOST`/`PORT` and
+forwards each request to OpenRouter's OpenAI-compatible chat-completions API.
 
 ## Setup
 
@@ -12,8 +12,8 @@ npm install
 Copy-Item .env.example .env
 ```
 
-Set `OPENAI_API_KEY` in `.env`. The service supports OpenAI and compatible
-providers by changing `OPENAI_BASE_URL` and `OPENAI_MODEL`. Do not commit `.env`.
+Set `OPENROUTER_API_KEY`, `OPENROUTER_BASE_URL`, and `OPENROUTER_MODEL` in
+`.env`. Do not commit `.env`.
 
 ## Run
 
@@ -21,10 +21,10 @@ providers by changing `OPENAI_BASE_URL` and `OPENAI_MODEL`. Do not commit `.env`
 npm start
 ```
 
-The portal backend should use its existing default:
+For local development, the portal backend can use:
 
 ```env
-SAHAYAK_API_URL=http://127.0.0.1:8000
+SAHAYAK_API_URL=http://localhost:8000
 ```
 
 The service exposes `POST /chat` with `{ "problem": "...", "language": "en" }`
