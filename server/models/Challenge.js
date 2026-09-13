@@ -182,7 +182,7 @@ const challengeSchema = new mongoose.Schema(
     },
     assignmentStatus: {
       type: String,
-      enum: ['unassigned', 'awaiting_acceptance', 'accepted'],
+      enum: ['unassigned', 'pending', 'awaiting_acceptance', 'accepted'],
       default: 'unassigned'
     },
     acceptedByUniversity: {

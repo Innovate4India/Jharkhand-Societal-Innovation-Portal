@@ -183,7 +183,11 @@ export const acceptChallenge = async (req, res, next) => {
       });
     }
 
-    if (challenge.status !== 'assigned' || challenge.assignmentStatus === 'accepted' || challenge.acceptedByUniversity) {
+    if (
+      !['assigned', 'funding_approved'].includes(challenge.status)
+      || !['pending', 'awaiting_acceptance'].includes(challenge.assignmentStatus)
+      || challenge.acceptedByUniversity
+    ) {
       return res.status(400).json({
         success: false,
         message: 'This challenge cannot be accepted in its current status'
@@ -194,6 +198,12 @@ export const acceptChallenge = async (req, res, next) => {
     challenge.acceptedByUniversity = req.user.id;
     challenge.acceptedAt = new Date();
     challenge.status = 'accepted';
+    // Recover legacy records that were funded before acceptance: funding must
+    // be explicitly approved again after this acceptance.
+    challenge.fundingStatus = 'pending';
+    challenge.fundingAmount = 0;
+    challenge.fundingApprovedBy = null;
+    challenge.fundingApprovedAt = null;
     await challenge.save();
     await challenge.populate([
       { path: 'submittedBy', select: 'name email role district villageOrCity' },
@@ -617,7 +627,7 @@ export const assignChallenge = async (req, res, next) => {
       {
         assignedUniversity,
         status: 'assigned',
-        assignmentStatus: 'awaiting_acceptance',
+        assignmentStatus: 'pending',
         acceptedByUniversity: null,
         acceptedAt: null,
         fundingAmount: 0,
@@ -696,7 +706,13 @@ export const approveChallengeFunding = async (req, res, next) => {
         message: 'Challenge not found'
       });
     }
-    if (challenge.status !== 'accepted' || !challenge.assignedUniversity || challenge.assignmentStatus !== 'accepted' || !challenge.acceptedByUniversity) {
+    if (
+      challenge.status !== 'accepted'
+      || !challenge.assignedUniversity
+      || challenge.assignmentStatus !== 'accepted'
+      || !challenge.acceptedByUniversity
+      || challenge.acceptedByUniversity.toString() !== challenge.assignedUniversity.toString()
+    ) {
       return res.status(400).json({
         success: false,
         message: 'The assigned university must accept the challenge before funding approval'

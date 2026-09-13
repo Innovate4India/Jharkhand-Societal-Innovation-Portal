@@ -123,7 +123,7 @@ export async function getChallenges() {
     district: string;
     villageOrCity: string;
     status: string;
-    assignmentStatus?: 'unassigned' | 'awaiting_acceptance' | 'accepted';
+    assignmentStatus?: 'unassigned' | 'pending' | 'awaiting_acceptance' | 'accepted';
     acceptedByUniversity?: { _id?: string; name?: string; email?: string };
     acceptedAt?: string;
     priority: string;
@@ -200,7 +200,7 @@ export async function getProjects() {
     facultyMentor?: { _id?: string; name?: string; accountType?: string; universityDepartment?: string };
     projectType: string;
     status: string;
-    assignmentStatus?: 'unassigned' | 'awaiting_acceptance' | 'accepted';
+    assignmentStatus?: 'unassigned' | 'pending' | 'awaiting_acceptance' | 'accepted';
     acceptedByUniversity?: { _id?: string; name?: string; email?: string };
     acceptedAt?: string;
     solutionSummary?: string;
