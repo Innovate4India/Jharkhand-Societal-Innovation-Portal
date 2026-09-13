@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Bot, ChevronDown, Loader2, Send, Sparkles, X } from "lucide-react";
 import { chatWithSahayak } from "@/lib/api";
+import { emergencyHelplines, getEmergencyGuidance } from "@/lib/emergency-helplines";
+import { getOfflineSahayakResponse } from "@/lib/offline-sahayak";
 
 type SahayakResponse = {
   message?: string;
@@ -14,6 +16,8 @@ type SahayakResponse = {
   escalation?: { required?: boolean; contact?: string; reason?: string };
   prevention?: string[];
   helplines?: { name?: string; number?: string; purpose?: string }[];
+  emergency?: boolean;
+  emergencyScenario?: Parameters<typeof getEmergencyGuidance>[0];
 };
 
 type Message = { id: number; author: "user" | "sahayak"; text?: string; response?: SahayakResponse };
@@ -26,6 +30,52 @@ const quickActions: { label: string; view: View }[] = [
 ];
 
 function ResponseBody({ response }: { response: SahayakResponse }) {
+  const [copiedNumber, setCopiedNumber] = useState("");
+
+  if (response.emergency && response.emergencyScenario) {
+    const emergency = getEmergencyGuidance(response.emergencyScenario);
+    const copyNumber = (number: string) => {
+      if (!navigator.clipboard) {
+        console.error("Clipboard API is unavailable; use the visible number to copy it manually");
+        return;
+      }
+      void navigator.clipboard.writeText(number).then(
+        () => setCopiedNumber(number),
+        (error: unknown) => console.error("Unable to copy emergency number", error),
+      );
+    };
+
+    return (
+      <div className="space-y-3 text-sm leading-6">
+        <div className="rounded-xl border border-red-200 bg-red-50 p-3">
+          <p className="text-base font-extrabold text-red-900">{emergency.icon} {emergency.title}</p>
+          <p className="mt-1 text-xs text-red-800">Emergency guidance does not replace professional emergency services.</p>
+        </div>
+        <ol className="list-decimal space-y-1 pl-5 text-slate-700">
+          {emergency.steps.map((step) => <li key={step}>{step}</li>)}
+        </ol>
+        <div className="space-y-2">
+          {emergency.contacts.map((contact) => (
+            <div key={contact.number} className={`flex items-center justify-between gap-2 rounded-xl border p-2.5 ${contact.primary ? "border-red-300 bg-red-50" : "border-slate-200 bg-white"}`}>
+              <div className="min-w-0">
+                <p className="font-bold text-slate-800">{contact.name}</p>
+                <p className="text-xs text-slate-500">{contact.number}</p>
+              </div>
+              <div className="flex shrink-0 gap-1.5">
+                <a href={`tel:${contact.number}`} className="rounded-lg bg-red-700 px-3 py-2 text-xs font-extrabold text-white hover:bg-red-800">
+                  Call {contact.number}
+                </a>
+                <button type="button" onClick={() => copyNumber(contact.number)} className="rounded-lg border border-slate-300 px-2 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50" aria-label={`Copy ${contact.number}`}>
+                  {copiedNumber === contact.number ? "Copied" : "Copy"}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   if (response.message) {
     return <p dir="auto" className="text-sm leading-6">{response.message}</p>;
   }
@@ -85,6 +135,9 @@ export default function SahayakChat({ onNavigate }: { onNavigate: (view: View) =
   const [sending, setSending] = useState(false);
   const [language, setLanguage] = useState<"en" | "hi">("en");
   const [error, setError] = useState("");
+  const [isOnline, setIsOnline] = useState(true);
+  const [offlineFallback, setOfflineFallback] = useState(false);
+  const [showDirectory, setShowDirectory] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     { id: 1, author: "sahayak", text: "Hello! I am Sahayak. Tell me about a local problem or ask how the portal can help." },
   ]);
@@ -94,6 +147,20 @@ export default function SahayakChat({ onNavigate }: { onNavigate: (view: View) =
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, sending]);
 
+  useEffect(() => {
+    const updateOnlineState = () => {
+      setIsOnline(navigator.onLine);
+      if (navigator.onLine) setOfflineFallback(false);
+    };
+    updateOnlineState();
+    window.addEventListener("online", updateOnlineState);
+    window.addEventListener("offline", updateOnlineState);
+    return () => {
+      window.removeEventListener("online", updateOnlineState);
+      window.removeEventListener("offline", updateOnlineState);
+    };
+  }, []);
+
   async function sendMessage(event?: React.FormEvent, preset?: string) {
     event?.preventDefault();
     const problem = (preset ?? input).trim();
@@ -102,12 +169,17 @@ export default function SahayakChat({ onNavigate }: { onNavigate: (view: View) =
     if (!preset) setInput("");
     setMessages((current) => [...current, { id: Date.now(), author: "user", text: problem }]);
     setSending(true);
-    const response = await chatWithSahayak(problem, language);
+    const localResponse = getOfflineSahayakResponse(problem, language);
+    const response = localResponse.emergency || !isOnline
+      ? { success: true, data: localResponse }
+      : await chatWithSahayak(problem, language);
     setSending(false);
     if (!response.success || !response.data) {
-      setError(response.message === "fetch failed" ? "Sahayak is unavailable right now. Please try again." : response.message || "Sahayak is unavailable right now. Please try again.");
+      setOfflineFallback(true);
+      setMessages((current) => [...current, { id: Date.now() + 1, author: "sahayak", response: getOfflineSahayakResponse(problem, language) }]);
       return;
     }
+    if ("offline" in response.data) setOfflineFallback(true);
     setMessages((current) => [...current, { id: Date.now() + 1, author: "sahayak", response: response.data }]);
   }
 
@@ -115,7 +187,7 @@ export default function SahayakChat({ onNavigate }: { onNavigate: (view: View) =
     <>
       <section className={`mobile-sahayak-window fixed inset-x-4 bottom-24 z-50 flex max-h-[min(680px,calc(100vh-7rem))] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl transition duration-200 sm:inset-auto sm:bottom-24 sm:right-6 sm:w-[min(410px,calc(100vw-2rem))] ${isOpen ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-3 opacity-0"}`} aria-label="Sahayak chat" aria-hidden={!isOpen} inert={!isOpen ? true : undefined}>
           <header className="flex items-start justify-between gap-2 bg-emerald-900 px-3 py-3 text-white sm:gap-3 sm:px-4 sm:py-4">
-            <div className="flex min-w-0 items-center gap-2 sm:gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-orange-400 text-emerald-950"><Bot className="size-5" /></span><div className="min-w-0"><h2 className="font-bold">Sahayak</h2><p className="break-words text-xs text-emerald-100">Your AI assistant for the Jharkhand Innovation Portal</p></div></div>
+            <div className="flex min-w-0 items-center gap-2 sm:gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-orange-400 text-emerald-950"><Bot className="size-5" /></span><div className="min-w-0"><h2 className="font-bold">Sahayak</h2><p className="break-words text-xs text-emerald-100">Your AI assistant for the Jharkhand Innovation Portal</p><p className="mt-1 text-xs font-semibold">{isOnline && !offlineFallback ? "🟢 Sahayak AI — Online" : "🟠 Sahayak — Offline Assistance"}</p></div></div>
             <div className="flex shrink-0 items-center gap-1"><label className="sr-only" htmlFor="sahayak-language">Language</label><select id="sahayak-language" value={language} onChange={(event) => setLanguage(event.target.value as "en" | "hi")} className="max-w-[84px] rounded-md border-0 bg-white/10 px-1 py-1 text-xs text-white outline-none [&>option]:text-slate-900"><option value="en">English</option><option value="hi">हिंदी</option></select><button onClick={() => setIsOpen(false)} aria-label="Close Sahayak" className="rounded-lg p-2 hover:bg-white/10"><X className="size-5" /></button></div>
           </header>
           <div className="flex-1 space-y-3 overflow-y-auto bg-slate-50 p-4" aria-live="polite">
@@ -135,6 +207,20 @@ export default function SahayakChat({ onNavigate }: { onNavigate: (view: View) =
               {quickActions.map((action) => <button key={action.label} onClick={() => { setIsOpen(false); onNavigate(action.view); }} className="shrink-0 rounded-full border border-emerald-200 px-3 py-1.5 text-xs font-bold text-emerald-800 hover:bg-emerald-50">{action.label}</button>)}
               <button onClick={() => void sendMessage(undefined, "How does this portal work?")} disabled={sending} className="shrink-0 rounded-full border border-orange-200 px-3 py-1.5 text-xs font-bold text-orange-800 hover:bg-orange-50 disabled:opacity-50">How does this portal work?</button>
             </div>
+            <button type="button" onClick={() => setShowDirectory((current) => !current)} className="mb-2 w-full rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-left text-xs font-bold text-red-900">
+              {showDirectory ? "Hide" : "Open"} offline national emergency helpline directory
+            </button>
+            {showDirectory ? (
+              <div className="mb-2 max-h-52 space-y-1 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-2">
+                <p className="px-1 pb-1 text-[11px] text-slate-500">Numbers are stored on this device. Availability and routing for some services may vary by state.</p>
+                {emergencyHelplines.map((helpline) => (
+                  <div key={helpline.number} className="flex items-center justify-between gap-2 rounded-md bg-white px-2 py-1.5 text-xs">
+                    <span className="min-w-0"><strong>{helpline.number}</strong> <span className="text-slate-600">{helpline.name}</span></span>
+                    <a href={`tel:${helpline.number}`} className="shrink-0 rounded bg-red-700 px-2 py-1 font-bold text-white">Call</a>
+                  </div>
+                ))}
+              </div>
+            ) : null}
             <form onSubmit={sendMessage} className="flex items-end gap-2">
               <label className="sr-only" htmlFor="sahayak-input">Message Sahayak</label>
               <textarea id="sahayak-input" value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void sendMessage(); } }} rows={1} disabled={sending} placeholder="Describe your problem..." className="min-h-10 flex-1 resize-none rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/15 disabled:bg-slate-100" />

@@ -1,3 +1,5 @@
+import type { EmergencyScenario } from "./emergency-helplines";
+
 interface ApiResponse<T> {
   success: boolean;
   message?: string;
@@ -99,6 +101,7 @@ export async function getCurrentUser() {
 
 export async function chatWithSahayak(problem: string, language: 'en' | 'hi' = 'en') {
   return apiCall<{
+    offline?: boolean;
     message?: string;
     understanding?: { summary?: string };
     severity?: string;
@@ -108,6 +111,8 @@ export async function chatWithSahayak(problem: string, language: 'en' | 'hi' = '
     escalation?: { required?: boolean; contact?: string; reason?: string };
     prevention?: string[];
     helplines?: { name?: string; number?: string; purpose?: string }[];
+    emergency?: boolean;
+    emergencyScenario?: EmergencyScenario;
   }>('/api/sahayak/chat', {
     method: 'POST',
     body: JSON.stringify({ problem, language }),

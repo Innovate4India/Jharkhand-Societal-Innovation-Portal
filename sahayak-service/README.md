@@ -15,6 +15,11 @@ Copy-Item .env.example .env
 Set `OPENROUTER_API_KEY`, `OPENROUTER_BASE_URL`, and `OPENROUTER_MODEL` in
 `.env`. Do not commit `.env`.
 
+The portal's Sahayak service uses the same server-side OpenRouter integration
+as `SIH-BOT/BACKEND`: `POST /chat/completions`, the `OPENROUTER_API_KEY`
+environment variable, and the configured OpenRouter model. Keep the key in the
+service environment only; it must never be added to browser code.
+
 ## Run
 
 ```powershell
