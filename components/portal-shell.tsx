@@ -34,7 +34,7 @@ import { cn } from "@/lib/utils";
 import ChallengesPage from "@/components/challenges-page";
 import GovernmentDashboard from "@/components/government-dashboard";
 import UniversityDashboard from "@/components/university-dashboard";
-import SahayakChat from "@/components/sahayak-chat";
+import SahayakChat, { OfflineHomepageSahayak } from "@/components/sahayak-chat";
 import DashboardShell from "@/components/dashboard-shell";
 
 type View =
@@ -371,6 +371,7 @@ function Home({ setView }: { setView: (v: View) => void }) {
             </div>
           </div>
         </section>
+        <OfflineHomepageSahayak />
         <section className="mx-auto max-w-7xl px-5 pb-20 sm:px-10">
           <div className="grid gap-5 border-t border-slate-200 pt-12 sm:grid-cols-4">
             {[

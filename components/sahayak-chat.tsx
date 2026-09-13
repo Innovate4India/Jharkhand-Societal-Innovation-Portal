@@ -179,6 +179,7 @@ export default function SahayakChat({ onNavigate }: { onNavigate: (view: View) =
       setMessages((current) => [...current, { id: Date.now() + 1, author: "sahayak", response: getOfflineSahayakResponse(problem, language) }]);
       return;
     }
+
     if ("offline" in response.data) setOfflineFallback(true);
     setMessages((current) => [...current, { id: Date.now() + 1, author: "sahayak", response: response.data }]);
   }
@@ -230,5 +231,71 @@ export default function SahayakChat({ onNavigate }: { onNavigate: (view: View) =
       </section>
       <button onClick={() => setIsOpen((current) => !current)} aria-expanded={isOpen} aria-label={isOpen ? "Close Sahayak" : "Open Sahayak assistant"} className="mobile-sahayak-trigger fixed bottom-5 right-5 z-50 flex items-center gap-2 rounded-full bg-emerald-900 px-4 py-3 text-sm font-bold text-white shadow-xl transition hover:-translate-y-0.5 hover:bg-emerald-950 focus:outline-none focus:ring-4 focus:ring-emerald-700/25 sm:right-6"><Sparkles className="size-4 text-orange-300" />Sahayak<ChevronDown className={`size-4 transition-transform ${isOpen ? "rotate-180" : ""}`} /></button>
     </>
+  );
+}
+
+export function OfflineHomepageSahayak() {
+  const [input, setInput] = useState("");
+  const [language, setLanguage] = useState<"en" | "hi">("en");
+  const [isOnline, setIsOnline] = useState(true);
+  const [messages, setMessages] = useState<Message[]>([]);
+
+  useEffect(() => {
+    const updateOnlineState = () => setIsOnline(navigator.onLine);
+    updateOnlineState();
+    window.addEventListener("online", updateOnlineState);
+    window.addEventListener("offline", updateOnlineState);
+    return () => {
+      window.removeEventListener("online", updateOnlineState);
+      window.removeEventListener("offline", updateOnlineState);
+    };
+  }, []);
+
+  function sendOfflineMessage(event: React.FormEvent) {
+    event.preventDefault();
+    const problem = input.trim();
+    if (!problem) return;
+    setInput("");
+    const response = getOfflineSahayakResponse(problem, language);
+    setMessages((current) => [
+      ...current,
+      { id: Date.now(), author: "user", text: problem },
+      { id: Date.now() + 1, author: "sahayak", response },
+    ]);
+  }
+
+  if (isOnline) return null;
+
+  return (
+    <section className="mx-auto mt-8 w-full max-w-7xl rounded-2xl border border-orange-200 bg-orange-50 p-4 shadow-sm sm:p-6" aria-label="Offline Sahayak">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-lg font-extrabold text-orange-950">🟠 Offline Sahayak</p>
+          <p className="mt-1 text-sm text-orange-900">Internet is unavailable, but Sahayak can still help.</p>
+          <p className="mt-2 text-xs font-semibold text-orange-800">Emergency • Problems • Basic Guidance</p>
+        </div>
+        <label className="text-xs font-bold text-orange-950">
+          Language
+          <select value={language} onChange={(event) => setLanguage(event.target.value as "en" | "hi")} className="ml-2 rounded-md border border-orange-300 bg-white px-2 py-1 text-xs">
+            <option value="en">English</option>
+            <option value="hi">हिंदी</option>
+          </select>
+        </label>
+      </div>
+      {messages.length > 0 ? (
+        <div className="mt-4 max-h-[28rem] space-y-3 overflow-y-auto rounded-xl border border-orange-100 bg-white p-3">
+          {messages.map((message) => (
+            <div key={message.id} className={message.author === "user" ? "ml-auto max-w-[88%] rounded-xl bg-emerald-800 px-3 py-2 text-sm text-white" : "max-w-[96%] rounded-xl border border-slate-200 bg-white p-3 text-slate-700"}>
+              {message.text ? <p dir="auto">{message.text}</p> : <ResponseBody response={message.response!} />}
+            </div>
+          ))}
+        </div>
+      ) : null}
+      <form onSubmit={sendOfflineMessage} className="mt-4 flex items-end gap-2">
+        <label htmlFor="offline-sahayak-input" className="sr-only">Ask Offline Sahayak</label>
+        <textarea id="offline-sahayak-input" value={input} onChange={(event) => setInput(event.target.value)} rows={2} placeholder="Describe your problem..." className="min-h-11 flex-1 resize-y rounded-xl border border-orange-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-orange-600 focus:ring-2 focus:ring-orange-600/20" />
+        <button type="submit" disabled={!input.trim()} className="rounded-xl bg-orange-700 px-4 py-3 text-sm font-bold text-white hover:bg-orange-800 disabled:cursor-not-allowed disabled:opacity-50">Get Help</button>
+      </form>
+    </section>
   );
 }

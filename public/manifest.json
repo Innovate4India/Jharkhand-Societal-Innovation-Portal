@@ -3,6 +3,7 @@
   "short_name": "Innovation Portal",
   "description": "Connect communities, government and universities to solve local problems.",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#f8fafc",
   "theme_color": "#06245C",

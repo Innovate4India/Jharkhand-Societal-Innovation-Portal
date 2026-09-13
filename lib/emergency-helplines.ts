@@ -13,6 +13,10 @@ export type EmergencyScenario =
   | "fire"
   | "flood"
   | "earthquake"
+  | "landslide"
+  | "electricity"
+  | "snake-bite"
+  | "medical"
   | "cyber-fraud"
   | "gas-leak"
   | "child"
@@ -73,6 +77,30 @@ const guidance: Record<EmergencyScenario, EmergencyGuidance> = {
     steps: ["Move away from damaged buildings and other hazards.", "If shaking is ongoing, protect your head and follow local safety instructions.", "Contact emergency services from a safe location."],
     contacts: [findHelpline("112"), findHelpline("1070")],
   },
+  landslide: {
+    title: "Landslide Emergency",
+    icon: "🚨",
+    steps: ["Move away from slopes, debris and damaged roads.", "Do not enter unstable areas or cross debris.", "Contact emergency services and provide your exact location."],
+    contacts: [findHelpline("112"), findHelpline("1070")],
+  },
+  electricity: {
+    title: "Electricity Hazard",
+    icon: "⚡",
+    steps: ["Stay away from fallen wires, sparks and damaged equipment.", "Keep other people away and do not touch the wire or equipment.", "Call emergency services from a safe location."],
+    contacts: [findHelpline("112")],
+  },
+  "snake-bite": {
+    title: "Medical Emergency",
+    icon: "🚨",
+    steps: ["Move away from the snake and keep the person calm and still.", "Do not cut, suck or tightly tie the bite area.", "Call an ambulance and seek professional medical care immediately."],
+    contacts: [findHelpline("112"), findHelpline("108"), findHelpline("102")],
+  },
+  medical: {
+    title: "Medical Emergency",
+    icon: "🚨",
+    steps: ["Move to a safe place and avoid giving treatment beyond your training.", "Call an ambulance and provide the exact location.", "Follow instructions from professional responders."],
+    contacts: [findHelpline("112"), findHelpline("108"), findHelpline("102")],
+  },
   "cyber-fraud": {
     title: "Cyber Crime",
     icon: "💻",
@@ -111,8 +139,13 @@ const scenarioKeywords: ReadonlyArray<[EmergencyScenario, string[]]> = [
   ["child", ["child emergency", "child missing", "lost child", "baccha kho", "बच्चा खो", "बच्चा गुम"]],
   ["women", ["women in distress", "woman in distress", "महिला", "महिलाओं", "छेड़छाड़"]],
   ["earthquake", ["earthquake", "भूकंप"]],
+  ["landslide", ["landslide", "भूस्खलन", "pahad gir", "पहाड़ गिर"]],
   ["flood", ["flood", "बाढ़", "baadh"]],
   ["fire", ["fire", "aag", "आग", "धुआं", "धुआँ"]],
+  ["electricity", ["fallen wire", "live wire", "electric shock", "बिजली का तार", "गिरे तार", "करंट"]],
+  ["snake-bite", ["snake bite", "snakebite", "सांप ने काटा", "सांप का काटना", "सांप काट"]],
+  ["medical", ["medical emergency", "heart attack", "बेहोश", "सांस नहीं", "breathing problem", "chest pain"]],
+  ["landslide", ["road collapse", "road caved", "सड़क धंस", "सड़क टूट", "road टूट"]],
   ["accident", ["accident", "crash", "road accident", "दुर्घटना", "हादसा"]],
 ];
 

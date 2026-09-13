@@ -6,7 +6,7 @@ export default function PwaRegister() {
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
 
-    void navigator.serviceWorker.register("/sw.js").catch((error: unknown) => {
+    void navigator.serviceWorker.register("/sw.js", { scope: "/", updateViaCache: "none" }).catch((error: unknown) => {
       console.error("Sahayak offline service worker registration failed", error);
     });
   }, []);
