@@ -363,7 +363,7 @@ export const updateChallengeStatus = async (req, res, next) => {
       });
     }
 
-    const validStatuses = ['submitted', 'under_review', 'approved', 'assigned', 'accepted', 'funding_approved', 'in_progress', 'resolved', 'rejected'];
+    const validStatuses = ['submitted', 'under_review', 'approved', 'assigned', 'accepted', 'funding_approved', 'cancelled', 'in_progress', 'resolved', 'rejected'];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({
         success: false,
@@ -633,7 +633,10 @@ export const assignChallenge = async (req, res, next) => {
         fundingAmount: 0,
         fundingStatus: 'pending',
         fundingApprovedBy: null,
-        fundingApprovedAt: null
+        fundingApprovedAt: null,
+        cancelledBy: null,
+        cancelledAt: null,
+        cancellationReason: null
       },
       { new: true, runValidators: true }
     )
@@ -666,6 +669,43 @@ export const assignChallenge = async (req, res, next) => {
       });
     }
 
+    next(error);
+  }
+};
+
+// @desc    Cancel an assigned challenge before funding approval
+// @route   PATCH /api/challenges/:id/cancel
+// @access  Private - Government only
+export const cancelChallenge = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user || user.role !== 'government') {
+      return res.status(403).json({ success: false, message: 'Only government users can cancel challenges' });
+    }
+
+    const challenge = await Challenge.findById(req.params.id);
+    if (!challenge) return res.status(404).json({ success: false, message: 'Challenge not found' });
+    if (!challenge.assignedUniversity || !['pending', 'awaiting_acceptance', 'accepted'].includes(challenge.assignmentStatus)) {
+      return res.status(400).json({ success: false, message: 'Only assigned challenges can be cancelled' });
+    }
+    if (challenge.fundingStatus === 'approved' || challenge.status === 'funding_approved') {
+      return res.status(400).json({ success: false, message: 'Funding-approved challenges cannot be cancelled' });
+    }
+
+    challenge.status = 'cancelled';
+    challenge.cancelledBy = user._id;
+    challenge.cancelledAt = new Date();
+    challenge.cancellationReason = typeof req.body?.cancellationReason === 'string'
+      ? req.body.cancellationReason.trim() || null
+      : null;
+    await challenge.save();
+    await challenge.populate([
+      { path: 'assignedUniversity', select: 'name email institution universityDepartment' },
+      { path: 'cancelledBy', select: 'name email role' }
+    ]);
+    return res.status(200).json({ success: true, message: 'Challenge cancelled successfully', data: challenge });
+  } catch (error) {
+    if (error.kind === 'ObjectId') return res.status(404).json({ success: false, message: 'Challenge not found' });
     next(error);
   }
 };

@@ -126,6 +126,9 @@ export async function getChallenges() {
     assignmentStatus?: 'unassigned' | 'pending' | 'awaiting_acceptance' | 'accepted';
     acceptedByUniversity?: { _id?: string; name?: string; email?: string };
     acceptedAt?: string;
+    cancelledBy?: { _id?: string; name?: string };
+    cancelledAt?: string;
+    cancellationReason?: string | null;
     priority: string;
     fundingAmount?: number;
     fundingStatus?: 'pending' | 'approved';
@@ -344,6 +347,13 @@ export async function approveChallengeFunding(id: string, fundingAmount: number)
   return apiCall(`/api/challenges/${encodeURIComponent(id)}/funding`, {
     method: 'PATCH',
     body: JSON.stringify({ fundingAmount }),
+  });
+}
+
+export async function cancelChallenge(id: string, cancellationReason?: string) {
+  return apiCall(`/api/challenges/${encodeURIComponent(id)}/cancel`, {
+    method: 'PATCH',
+    body: JSON.stringify({ cancellationReason }),
   });
 }
 

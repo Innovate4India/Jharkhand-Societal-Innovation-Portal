@@ -89,6 +89,12 @@ export const createProject = async (req, res, next) => {
         message: 'The assigned university must accept the challenge before project creation'
       });
     }
+    if (challengeDoc.status === 'cancelled') {
+      return res.status(400).json({
+        success: false,
+        message: 'Cancelled challenges cannot have projects created'
+      });
+    }
     if (challengeDoc.fundingStatus !== 'approved' || challengeDoc.status !== 'funding_approved') {
       return res.status(400).json({
         success: false,
@@ -153,7 +159,7 @@ export const createProject = async (req, res, next) => {
       { path: 'createdBy', select: 'name email institution universityDepartment' },
       { path: 'university', select: 'name email institution universityDepartment' },
       { path: 'challenge', select: 'title category district status' },
-      { path: 'teamMembers', select: 'name email institution universityDepartment' },
+      { path: 'teamMembers', select: 'name email institution universityDepartment accountType' },
       { path: 'facultyMentor', select: 'name email institution universityDepartment accountType' },
       { path: 'industryPartners', select: 'name email organizationName organizationType' }
     ]);

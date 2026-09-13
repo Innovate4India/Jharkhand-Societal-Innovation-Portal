@@ -77,6 +77,7 @@ const challengeSchema = new mongoose.Schema(
           'assigned',
           'accepted',
           'funding_approved',
+          'cancelled',
           'in_progress',
           'resolved',
           'rejected'
@@ -192,6 +193,20 @@ const challengeSchema = new mongoose.Schema(
     },
     acceptedAt: {
       type: Date,
+      default: null
+    },
+    cancelledBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null
+    },
+    cancelledAt: {
+      type: Date,
+      default: null
+    },
+    cancellationReason: {
+      type: String,
+      trim: true,
       default: null
     },
 

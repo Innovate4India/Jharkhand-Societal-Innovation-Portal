@@ -10,6 +10,7 @@ import {
   updateChallengeStatus,
   updateChallengePriority,
   assignChallenge,
+  cancelChallenge,
   approveChallengeFunding,
   deleteChallenge,
   downloadChallengeAttachment
@@ -41,6 +42,9 @@ router.patch('/:id/priority', authorizeRoles('government'), updateChallengePrior
 
 // Assign challenge to university (government only)
 router.patch('/:id/assign', authorizeRoles('government'), assignChallenge);
+
+// Cancel an assigned challenge before funding (government only)
+router.patch('/:id/cancel', authorizeRoles('government'), cancelChallenge);
 
 // Approve government funding (government only)
 router.patch('/:id/funding', authorizeRoles('government'), approveChallengeFunding);
