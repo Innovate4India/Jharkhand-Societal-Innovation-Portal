@@ -293,7 +293,7 @@ export function OfflineHomepageSahayak() {
       ) : null}
       <form onSubmit={sendOfflineMessage} className="mt-4 flex items-end gap-2">
         <label htmlFor="offline-sahayak-input" className="sr-only">Ask Offline Sahayak</label>
-        <textarea id="offline-sahayak-input" value={input} onChange={(event) => setInput(event.target.value)} rows={2} placeholder="Describe your problem..." className="min-h-11 flex-1 resize-y rounded-xl border border-orange-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-orange-600 focus:ring-2 focus:ring-orange-600/20" />
+        <textarea id="offline-sahayak-input" value={input} onChange={(event) => setInput(event.target.value)} rows={2} placeholder="Describe your problem..." className="min-h-11 flex-1 resize-y rounded-xl border border-orange-300 bg-white text-black caret-black placeholder:text-gray-500 px-3 py-2.5 text-sm outline-none focus:border-orange-600 focus:text-black focus:ring-2 focus:ring-orange-600/20" />
         <button type="submit" disabled={!input.trim()} className="rounded-xl bg-orange-700 px-4 py-3 text-sm font-bold text-white hover:bg-orange-800 disabled:cursor-not-allowed disabled:opacity-50">Get Help</button>
       </form>
     </section>
