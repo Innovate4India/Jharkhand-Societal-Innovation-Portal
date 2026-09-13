@@ -183,18 +183,22 @@ export const acceptChallenge = async (req, res, next) => {
       });
     }
 
-    if (!['submitted', 'under_review', 'assigned', 'funding_approved'].includes(challenge.status)) {
+    if (challenge.status !== 'assigned' || challenge.assignmentStatus === 'accepted' || challenge.acceptedByUniversity) {
       return res.status(400).json({
         success: false,
         message: 'This challenge cannot be accepted in its current status'
       });
     }
 
-    challenge.status = challenge.status === 'funding_approved' ? 'funding_approved' : 'assigned';
+    challenge.assignmentStatus = 'accepted';
+    challenge.acceptedByUniversity = req.user.id;
+    challenge.acceptedAt = new Date();
+    challenge.status = 'accepted';
     await challenge.save();
     await challenge.populate([
       { path: 'submittedBy', select: 'name email role district villageOrCity' },
-      { path: 'assignedUniversity', select: 'name email institution universityDepartment' }
+      { path: 'assignedUniversity', select: 'name email institution universityDepartment' },
+      { path: 'acceptedByUniversity', select: 'name email institution universityDepartment' }
     ]);
 
     res.status(200).json({
@@ -256,6 +260,10 @@ export const getAllChallenges = async (req, res, next) => {
         path: 'assignedUniversity',
         select: 'name email institution institution universityDepartment'
       })
+      .populate({
+        path: 'acceptedByUniversity',
+        select: 'name email institution universityDepartment'
+      })
       .sort({ createdAt: -1 });
 
     res.status(200).json({
@@ -286,6 +294,10 @@ export const getChallengeById = async (req, res, next) => {
       })
       .populate({
         path: 'assignedUniversity',
+        select: 'name email institution universityDepartment'
+      })
+      .populate({
+        path: 'acceptedByUniversity',
         select: 'name email institution universityDepartment'
       });
 
@@ -341,7 +353,7 @@ export const updateChallengeStatus = async (req, res, next) => {
       });
     }
 
-    const validStatuses = ['submitted', 'under_review', 'approved', 'assigned', 'funding_approved', 'in_progress', 'resolved', 'rejected'];
+    const validStatuses = ['submitted', 'under_review', 'approved', 'assigned', 'accepted', 'funding_approved', 'in_progress', 'resolved', 'rejected'];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({
         success: false,
@@ -368,7 +380,7 @@ export const updateChallengeStatus = async (req, res, next) => {
       });
     }
 
-    const existingChallenge = await Challenge.findById(id).select('status');
+    const existingChallenge = await Challenge.findById(id).select('status assignedUniversity assignmentStatus acceptedByUniversity');
     if (!existingChallenge) {
       return res.status(404).json({
         success: false,
@@ -380,6 +392,7 @@ export const updateChallengeStatus = async (req, res, next) => {
       under_review: ['approved', 'rejected'],
       approved: ['approved'],
       assigned: ['assigned'],
+      accepted: ['accepted', 'funding_approved'],
       funding_approved: ['funding_approved'],
       in_progress: ['in_progress'],
       resolved: ['resolved'],
@@ -389,6 +402,17 @@ export const updateChallengeStatus = async (req, res, next) => {
       return res.status(400).json({
         success: false,
         message: `Cannot change challenge status from ${existingChallenge.status} to ${status}`
+      });
+    }
+
+    if (status === 'funding_approved' && (
+      !existingChallenge.assignedUniversity ||
+      existingChallenge.assignmentStatus !== 'accepted' ||
+      !existingChallenge.acceptedByUniversity
+    )) {
+      return res.status(400).json({
+        success: false,
+        message: 'University acceptance is required before funding approval'
       });
     }
 
@@ -590,7 +614,17 @@ export const assignChallenge = async (req, res, next) => {
     // Find and update challenge
     const challenge = await Challenge.findByIdAndUpdate(
       id,
-      { assignedUniversity, status: 'assigned' },
+      {
+        assignedUniversity,
+        status: 'assigned',
+        assignmentStatus: 'awaiting_acceptance',
+        acceptedByUniversity: null,
+        acceptedAt: null,
+        fundingAmount: 0,
+        fundingStatus: 'pending',
+        fundingApprovedBy: null,
+        fundingApprovedAt: null
+      },
       { new: true, runValidators: true }
     )
       .populate({
@@ -662,10 +696,10 @@ export const approveChallengeFunding = async (req, res, next) => {
         message: 'Challenge not found'
       });
     }
-    if (challenge.status !== 'assigned' || !challenge.assignedUniversity) {
+    if (challenge.status !== 'accepted' || !challenge.assignedUniversity || challenge.assignmentStatus !== 'accepted' || !challenge.acceptedByUniversity) {
       return res.status(400).json({
         success: false,
-        message: 'Only challenges assigned to a university can receive funding approval'
+        message: 'The assigned university must accept the challenge before funding approval'
       });
     }
 

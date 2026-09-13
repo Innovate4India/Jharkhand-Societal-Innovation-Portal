@@ -79,7 +79,13 @@ export const createProject = async (req, res, next) => {
         message: 'You can only create projects for challenges assigned to your university'
       });
     }
-    if (challengeDoc.status !== 'funding_approved') {
+    if (challengeDoc.assignmentStatus !== 'accepted' || !challengeDoc.acceptedByUniversity) {
+      return res.status(400).json({
+        success: false,
+        message: 'The assigned university must accept the challenge before project creation'
+      });
+    }
+    if (challengeDoc.fundingStatus !== 'approved' || challengeDoc.status !== 'funding_approved') {
       return res.status(400).json({
         success: false,
         message: 'A challenge must have government funding approval before project creation'

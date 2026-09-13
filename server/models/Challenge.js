@@ -75,6 +75,7 @@ const challengeSchema = new mongoose.Schema(
           'under_review',
           'approved',
           'assigned',
+          'accepted',
           'funding_approved',
           'in_progress',
           'resolved',
@@ -177,6 +178,20 @@ const challengeSchema = new mongoose.Schema(
     assignedUniversity: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
+      default: null
+    },
+    assignmentStatus: {
+      type: String,
+      enum: ['unassigned', 'awaiting_acceptance', 'accepted'],
+      default: 'unassigned'
+    },
+    acceptedByUniversity: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null
+    },
+    acceptedAt: {
+      type: Date,
       default: null
     },
 
