@@ -204,26 +204,27 @@ export default function GovernmentDashboard({ requestedAction = '' }: { requeste
     const refreshed = await getChallenges()
     if (refreshed.success) setChallenges(refreshed.data || [])
   }
+  async function cancelTask(id: string, title: string) {
+    if (cancellingId) return
+    const cancellationReason = window.prompt(`Cancel "${title}"? Add an optional reason:`)
+    if (cancellationReason === null) return
+    setCancellingId(id)
+    const response = await cancelChallenge(id, cancellationReason)
+    if (!response.success) action(response.message || 'Unable to cancel task')
+    else {
+      const refreshed = await getChallenges()
+      if (refreshed.success) setChallenges(refreshed.data || [])
+      action('Task cancelled')
+    }
+    setCancellingId('')
+  }
+
   async function approveFunding() {
     if (!fundingChallenge || fundingLoading) return
     const amount = Number(fundingAmount)
     if (!Number.isFinite(amount) || amount <= 0) {
       setFundingError('Enter a positive funding amount.')
       return
-    }
-    async function cancelTask(id: string, title: string) {
-      if (cancellingId) return
-      const cancellationReason = window.prompt(`Cancel "${title}"? Add an optional reason:`)
-      if (cancellationReason === null) return
-      setCancellingId(id)
-      const response = await cancelChallenge(id, cancellationReason)
-      if (!response.success) action(response.message || 'Unable to cancel task')
-      else {
-        const refreshed = await getChallenges()
-        if (refreshed.success) setChallenges(refreshed.data || [])
-        action('Task cancelled')
-      }
-      setCancellingId('')
     }
     setFundingLoading(true)
     setFundingError('')
