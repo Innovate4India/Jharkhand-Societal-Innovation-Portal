@@ -35,6 +35,11 @@ const projectSchema = new mongoose.Schema(
       type: String,
       required: [true, 'University department is required']
     },
+    facultyMentor: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null
+    },
 
     // Project type
     projectType: {

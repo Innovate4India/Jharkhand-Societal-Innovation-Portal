@@ -9,12 +9,15 @@ import challengeRoutes from './routes/challengeRoutes.js';
 import projectRoutes from './routes/projectRoutes.js';
 import collaborationRoutes from './routes/collaborationRoutes.js';
 import userRoutes from './routes/userRoutes.js';
+import sahayakRoutes from './routes/sahayakRoutes.js';
+import dashboardRoutes from './routes/dashboardRoutes.js';
 
 // Load environment variables
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = Number.parseInt(process.env.PORT || '5000', 10);
+const HOST = process.env.HOST || '0.0.0.0';
 
 // Connect to MongoDB
 connectDB();
@@ -22,7 +25,21 @@ connectDB();
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(cors());
+const configuredOrigins = (process.env.FRONTEND_URLS || process.env.FRONTEND_URL || '')
+  .split(',')
+  .map((origin) => origin.trim().replace(/\/$/, ''))
+  .filter(Boolean);
+const developmentOrigins = ['http://localhost:3000', 'http://127.0.0.1:3000'];
+const allowedOrigins = configuredOrigins.length ? configuredOrigins : developmentOrigins;
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.includes(origin.replace(/\/$/, ''))) {
+      return callback(null, true);
+    }
+    return callback(new Error('CORS origin is not allowed'));
+  },
+  credentials: true,
+}));
 
 // Routes
 app.use('/api', healthRoutes);
@@ -31,6 +48,8 @@ app.use('/api/challenges', challengeRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/collaborations', collaborationRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/sahayak', sahayakRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 // 404 Middleware
 app.use(notFound);
@@ -39,8 +58,8 @@ app.use(notFound);
 app.use(errorHandler);
 
 // Start Server
-app.listen(PORT, () => {
-  console.log(`\n✓ Server running on http://localhost:${PORT}`);
+app.listen(PORT, HOST, () => {
+  console.log(`\n✓ Server running on http://${HOST}:${PORT}`);
   console.log(`✓ Environment: ${process.env.NODE_ENV || 'development'}\n`);
 });
 

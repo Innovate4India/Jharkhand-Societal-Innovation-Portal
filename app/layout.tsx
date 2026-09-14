@@ -1,11 +1,13 @@
 import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
+import PwaRegister from '@/components/pwa-register'
 import './globals.css'
 
 export const metadata: Metadata = {
   title: 'Jharkhand Societal Innovation Portal',
-  description: 'A trusted platform connecting communities, government, universities and industries to solve real-world problems in Jharkhand.',
+  description: 'A trusted platform connecting communities, government and universities to solve real-world problems in Jharkhand.',
   generator: 'v0.app',
+  manifest: '/manifest.json',
   icons: {
     icon: [
       {
@@ -28,8 +30,8 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   colorScheme: 'light dark',
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: 'white' },
-    { media: '(prefers-color-scheme: dark)', color: 'black' },
+    { media: '(prefers-color-scheme: light)', color: '#06245C' },
+    { media: '(prefers-color-scheme: dark)', color: '#06245C' },
   ],
 }
 
@@ -42,6 +44,7 @@ export default function RootLayout({
     <html lang="en" className="bg-background">
       <body className="antialiased">
         {children}
+        <PwaRegister />
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>

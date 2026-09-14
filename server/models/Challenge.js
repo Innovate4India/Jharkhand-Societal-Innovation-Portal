@@ -60,6 +60,11 @@ const challengeSchema = new mongoose.Schema(
       ref: 'User',
       required: [true, 'Challenge must be submitted by a user']
     },
+    citizenContactNumber: {
+      type: String,
+      select: false,
+      match: [/^[6-9]\d{9}$/, 'Contact number must be a valid 10-digit Indian mobile number']
+    },
 
     // Status tracking
     status: {
@@ -70,6 +75,9 @@ const challengeSchema = new mongoose.Schema(
           'under_review',
           'approved',
           'assigned',
+          'accepted',
+          'funding_approved',
+          'cancelled',
           'in_progress',
           'resolved',
           'rejected'
@@ -121,6 +129,39 @@ const challengeSchema = new mongoose.Schema(
       ]
     },
 
+    attachments: [
+      {
+        originalName: {
+          type: String,
+          required: true,
+          trim: true
+        },
+        storedName: {
+          type: String,
+          required: true,
+          select: false
+        },
+        mimeType: {
+          type: String,
+          required: true
+        },
+        size: {
+          type: Number,
+          required: true,
+          min: 1
+        },
+        uploadedBy: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'User',
+          required: true
+        },
+        uploadedAt: {
+          type: Date,
+          default: Date.now
+        }
+      }
+    ],
+
     // AI Analysis (optional - for future implementation)
     aiAnalysis: {
       category: String,
@@ -138,6 +179,58 @@ const challengeSchema = new mongoose.Schema(
     assignedUniversity: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
+      default: null
+    },
+    assignmentStatus: {
+      type: String,
+      enum: ['unassigned', 'pending', 'awaiting_acceptance', 'accepted'],
+      default: 'unassigned'
+    },
+    acceptedByUniversity: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null
+    },
+    acceptedAt: {
+      type: Date,
+      default: null
+    },
+    cancelledBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null
+    },
+    cancelledAt: {
+      type: Date,
+      default: null
+    },
+    cancellationReason: {
+      type: String,
+      trim: true,
+      default: null
+    },
+
+    // Government funding approval
+    fundingAmount: {
+      type: Number,
+      default: 0,
+      min: [0, 'Funding amount cannot be negative']
+    },
+    fundingStatus: {
+      type: String,
+      enum: {
+        values: ['pending', 'approved'],
+        message: 'Funding status must be pending or approved'
+      },
+      default: 'pending'
+    },
+    fundingApprovedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null
+    },
+    fundingApprovedAt: {
+      type: Date,
       default: null
     }
   },

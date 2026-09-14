@@ -174,6 +174,18 @@ export const getCollaborationById = async (req, res, next) => {
       });
     }
 
+    const user = await User.findById(req.user.id).select('role');
+    const project = await Project.findById(collaboration.project).select('university');
+    const canView = user?.role === 'government'
+      || collaboration.industryPartner.toString() === req.user.id
+      || project?.university.toString() === req.user.id;
+    if (!canView) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have access to this collaboration'
+      });
+    }
+
     res.status(200).json({
       success: true,
       data: collaboration
