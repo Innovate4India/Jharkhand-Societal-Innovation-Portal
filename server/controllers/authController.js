@@ -34,7 +34,7 @@ export const registerUser = async (req, res, next) => {
     }
 
     // Validate role
-    const validRoles = ['citizen', 'government', 'university'];
+    const validRoles = ['citizen', 'government', 'university', 'industry'];
     if (!validRoles.includes(role)) {
       return res.status(400).json({
         success: false,
@@ -132,7 +132,7 @@ export const loginUser = async (req, res, next) => {
       });
     }
 
-    if (!['citizen', 'government', 'university'].includes(user.role)) {
+    if (!['citizen', 'government', 'university', 'industry'].includes(user.role)) {
       return res.status(403).json({
         success: false,
         message: 'This account role is no longer supported for application login'

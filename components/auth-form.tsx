@@ -7,8 +7,8 @@ import { useState } from 'react'
 import ThemeToggle from '@/components/theme-toggle'
 import { login, register, saveAuthToken, saveCurrentUser } from '@/lib/api'
 
-type Role = 'Citizen' | 'Government' | 'University'
-const roles: Role[] = ['Citizen', 'Government', 'University']
+type Role = 'Citizen' | 'Government' | 'University' | 'Industry'
+const roles: Role[] = ['Citizen', 'Government', 'University', 'Industry']
 const districts = ['Ranchi', 'Dhanbad', 'Bokaro', 'Deoghar', 'East Singhbhum', 'Hazaribagh']
 
 function Field({ label, name, type = 'text', placeholder, required = true }: { label: string; name: string; type?: string; placeholder?: string; required?: boolean }) {
@@ -61,7 +61,7 @@ export function LoginForm() {
     if (response.data?.token) saveAuthToken(response.data.token)
     if (response.data?.user) saveCurrentUser(response.data.user)
     const userRole = response.data?.user?.role
-    const backendRole = userRole === 'government' ? 'Government' : userRole === 'university' ? 'University' : 'Citizen'
+    const backendRole = userRole === 'government' ? 'Government' : userRole === 'university' ? 'University' : userRole === 'industry' ? 'Industry' : 'Citizen'
     if (backendRole !== selectedRole) setRoleNotice(`Your account is registered as ${backendRole}. You have been redirected to the ${backendRole} dashboard.`)
     window.setTimeout(() => router.push('/'), 700)
   }
@@ -88,7 +88,7 @@ export function RegisterForm() {
     }
     setLoading(true)
     const userData: Record<string, string> = { name: String(formData.get('name') || '').trim(), email: String(formData.get('email') || '').trim(), password, role: role.toLowerCase() }
-    const fieldsByRole: Record<Role, string[]> = { Citizen: ['mobile', 'district', 'villageOrCity'], Government: ['department', 'designation', 'district'], University: ['institution', 'universityDepartment', 'accountType'] }
+    const fieldsByRole: Record<Role, string[]> = { Citizen: ['mobile', 'district', 'villageOrCity'], Government: ['department', 'designation', 'district'], University: ['institution', 'universityDepartment', 'accountType'], Industry: ['organizationName', 'organizationType', 'expertise'] }
     fieldsByRole[role].forEach(field => { userData[field] = String(formData.get(field) || '').trim() })
     const response = await register(userData)
     setLoading(false)
@@ -100,5 +100,5 @@ export function RegisterForm() {
   }
 
   if (success) return <AuthFrame title="Account created successfully" subtitle="Account created successfully. Please login to continue."><div className="text-center"><span className="mx-auto grid size-14 place-items-center rounded-full bg-emerald-100 text-emerald-800"><CheckCircle2 className="size-7" /></span><button onClick={() => router.push('/login')} className="mt-8 h-11 w-full rounded-lg bg-emerald-800 text-sm font-bold text-white">Go to Login</button></div></AuthFrame>
-  return <AuthFrame title="Create your account" subtitle="Join the people building a better Jharkhand."><form onSubmit={submit} className="space-y-4"><RoleSelect role={role} setRole={setRole} /><div className="grid gap-4 sm:grid-cols-2"><Field name="name" label="Full Name" /><Field name="email" label="Email" type="email" />{role === 'Citizen' && <><Field name="mobile" label="Mobile Number" type="tel" /><label className="block"><span className="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-200">District *</span><select name="district" required className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 dark:border-slate-700 dark:bg-slate-900 dark:text-white"><option value="">Select district</option>{districts.map(d => <option key={d}>{d}</option>)}</select></label><Field name="villageOrCity" label="Village / City" /></>}{role === 'Government' && <><Field name="department" label="Department" /><Field name="designation" label="Designation" /><Field name="district" label="District" /></>}{role === 'University' && <><Field name="institution" label="University / Institution" /><Field name="universityDepartment" label="Department" /><label className="block"><span className="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-200">Account type *</span><select name="accountType" required className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 dark:border-slate-700 dark:bg-slate-900 dark:text-white"><option value="student">Student</option><option value="faculty">Faculty</option><option value="researcher">Researcher</option></select></label></>}</div><div className="grid gap-4 sm:grid-cols-2"><PasswordField name="password" label="Password" /><PasswordField name="confirmPassword" label="Confirm Password" /></div>{error && <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">{error}</p>}<button disabled={loading} className="h-11 w-full rounded-lg bg-emerald-800 text-sm font-bold text-white disabled:opacity-70">{loading ? 'Creating Account...' : 'Create Account'}</button><p className="text-center text-sm text-slate-500">Already have an account? <Link href="/login" className="font-bold text-emerald-800">Login</Link></p></form></AuthFrame>
+  return <AuthFrame title="Create your account" subtitle="Join the people building a better Jharkhand."><form onSubmit={submit} className="space-y-4"><RoleSelect role={role} setRole={setRole} /><div className="grid gap-4 sm:grid-cols-2"><Field name="name" label={role === 'Industry' ? 'Contact Person' : 'Full Name'} /><Field name="email" label="Official Email" type="email" />{role === 'Citizen' && <><Field name="mobile" label="Mobile Number" type="tel" /><Field name="district" label="District" /><Field name="villageOrCity" label="Village / City" /></>}{role === 'Government' && <><Field name="department" label="Department" /><Field name="designation" label="Designation" /><Field name="district" label="District" /></>}{role === 'University' && <><Field name="institution" label="University / Institution" /><Field name="universityDepartment" label="Department" /><Field name="accountType" label="Account type" /></>}{role === 'Industry' && <><Field name="organizationName" label="Organization Name" /><Field name="organizationType" label="Organization Type" /><Field name="expertise" label="Expertise" /></>}</div><div className="grid gap-4 sm:grid-cols-2"><PasswordField name="password" label="Password" /><PasswordField name="confirmPassword" label="Confirm Password" /></div>{error && <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">{error}</p>}<button disabled={loading} className="h-11 w-full rounded-lg bg-emerald-800 text-sm font-bold text-white disabled:opacity-70">{loading ? 'Creating Account...' : 'Create Account'}</button><p className="text-center text-sm text-slate-500">Already have an account? <Link href="/login" className="font-bold text-emerald-800">Login</Link></p></form></AuthFrame>
 }

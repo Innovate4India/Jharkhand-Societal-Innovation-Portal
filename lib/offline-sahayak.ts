@@ -121,7 +121,7 @@ const topics: OfflineTopic[] = [
   {
     keywords: ["funding", "fund", "money", "budget", "पैसा", "फंड", "फंडिंग", "बजट"],
     response: {
-      en: "Government funding is reviewed after a suitable project plan and estimated budget are available. Approval depends on official review and is recorded in the project workflow. Funding approval does not mean cash is given to a citizen through Sahayak; use the portal status and official contacts for questions.",
+      en: "Government verifies and assigns challenges. University teams prepare solutions, and Industry sponsors eligible projects or provides expertise. Check the portal for current sponsorship status and official contacts.",
       hi: "उपयुक्त प्रोजेक्ट योजना और अनुमानित बजट के बाद सरकारी फंडिंग की समीक्षा होती है। स्वीकृति आधिकारिक समीक्षा पर निर्भर करती है और वर्कफ्लो में दर्ज होती है। फंडिंग स्वीकृति का अर्थ यह नहीं कि Sahayak नागरिक को पैसा देता है; प्रश्नों के लिए पोर्टल स्थिति और आधिकारिक संपर्क देखें।",
     },
   },

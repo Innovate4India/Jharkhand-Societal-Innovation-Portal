@@ -210,7 +210,7 @@ const challengeSchema = new mongoose.Schema(
       default: null
     },
 
-    // Government funding approval
+    // Legacy funding fields retained for compatibility; new funding is Industry sponsorship.
     fundingAmount: {
       type: Number,
       default: 0,
@@ -232,7 +232,21 @@ const challengeSchema = new mongoose.Schema(
     fundingApprovedAt: {
       type: Date,
       default: null
-    }
+    },
+    industryFundingStatus: {
+      type: String,
+      enum: ['pending', 'eligible', 'funded_pending_university_acceptance', 'accepted', 'rejected', 'not_required'],
+      default: 'pending'
+    },
+    industryFundedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    industryFundingAmount: { type: Number, min: 0, default: null },
+    industryFundingAt: { type: Date, default: null },
+    industryFundingAcceptedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    industryFundingAcceptedAt: { type: Date, default: null },
+    industryFundingContactPerson: { type: String, trim: true, default: '' },
+    industryFundingContactEmail: { type: String, trim: true, default: '' },
+    industryFundingContactPhone: { type: String, trim: true, default: '' },
+    industryFundingMessage: { type: String, trim: true, default: '' }
   },
   {
     timestamps: true

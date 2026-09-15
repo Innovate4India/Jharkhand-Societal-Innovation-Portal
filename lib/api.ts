@@ -138,6 +138,10 @@ export async function getChallenges() {
     fundingAmount?: number;
     fundingStatus?: 'pending' | 'approved';
     fundingApprovedAt?: string;
+    industryFundingStatus?: 'pending' | 'eligible' | 'funded_pending_university_acceptance' | 'accepted' | 'rejected' | 'not_required';
+    industryFundingAmount?: number;
+    industryFundingAt?: string;
+    industryFundedBy?: { _id?: string; name?: string; organizationName?: string; email?: string };
     createdAt?: string;
     submittedBy?: { _id?: string; name?: string; email?: string; role?: string };
     assignedUniversity?: { _id?: string; name?: string; email?: string; institution?: string; universityDepartment?: string };
@@ -178,7 +182,7 @@ export type GovernmentAnalytics = {
   projects: { total: number; proposed: number; prototype: number; testing: number; deployed: number; completed: number };
   universities: { total: number; withAssignedChallenges: number; withActiveProjects: number };
   impact: { solutionsDeployed: number; communitiesResolved: number; studentsInvolved: number; facultyMentors: number };
-  funding: { approvedAmount: number; fundedCount: number };
+  funding: { approvedAmount: number; fundedCount: number; sponsorship?: Record<string, { count: number; amount: number }> };
 };
 
 export async function getGovernmentAnalytics() {
@@ -222,6 +226,30 @@ export async function getProjects() {
   }>>('/api/projects', {
     method: 'GET',
   });
+}
+
+export async function getIndustryOpportunities() {
+  return apiCall<any[]>('/api/industry/opportunities', { method: 'GET' })
+}
+
+export async function getIndustrySponsorships() {
+  return apiCall<any[]>('/api/industry/sponsorships', { method: 'GET' })
+}
+
+export async function createIndustrySponsorship(data: { project?: string; challenge?: string; amount: number; expertise?: string; notes?: string; contactPerson?: string; contactEmail?: string; contactPhone?: string }) {
+  return apiCall<any>('/api/industry/sponsorships', { method: 'POST', body: JSON.stringify(data) })
+}
+
+export async function getUniversitySponsorships() {
+  return apiCall<any[]>('/api/industry/university-sponsorships', { method: 'GET' })
+}
+
+export async function acceptUniversitySponsorship(challengeId: string) {
+  return apiCall<any>(`/api/industry/challenges/${encodeURIComponent(challengeId)}/funding/accept`, { method: 'PATCH' })
+}
+
+export async function acceptIndustryFunding(challengeId: string) {
+  return apiCall<any>(`/api/industry/challenges/${encodeURIComponent(challengeId)}/funding/accept`, { method: 'PATCH' })
 }
 
 export async function getProjectById(id: string) {
@@ -345,13 +373,6 @@ export async function assignChallenge(id: string, assignedUniversity: string) {
   return apiCall(`/api/challenges/${encodeURIComponent(id)}/assign`, {
     method: 'PATCH',
     body: JSON.stringify({ assignedUniversity }),
-  });
-}
-
-export async function approveChallengeFunding(id: string, fundingAmount: number) {
-  return apiCall(`/api/challenges/${encodeURIComponent(id)}/funding`, {
-    method: 'PATCH',
-    body: JSON.stringify({ fundingAmount }),
   });
 }
 

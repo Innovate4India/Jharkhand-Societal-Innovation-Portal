@@ -198,6 +198,9 @@ export const acceptChallenge = async (req, res, next) => {
     challenge.acceptedByUniversity = req.user.id;
     challenge.acceptedAt = new Date();
     challenge.status = 'accepted';
+    if (!challenge.industryFundingStatus || challenge.industryFundingStatus === 'pending') {
+      challenge.industryFundingStatus = 'eligible';
+    }
     // Recover legacy records that were funded before acceptance: funding must
     // be explicitly approved again after this acceptance.
     challenge.fundingStatus = 'pending';
@@ -233,6 +236,9 @@ export const acceptChallenge = async (req, res, next) => {
 // @access  Private
 export const getAllChallenges = async (req, res, next) => {
   try {
+    if (req.user.role === 'industry') {
+      return res.status(403).json({ success: false, message: 'Use Industry opportunities for eligible projects' });
+    }
     const { category, district, status, priority } = req.query;
 
     // Build filter object
@@ -261,7 +267,7 @@ export const getAllChallenges = async (req, res, next) => {
     if (req.user.role === 'government' || req.user.role === 'citizen') {
       challengeQuery.select('+citizenContactNumber');
     }
-    const challenges = await challengeQuery
+    challengeQuery
       .populate({
         path: 'submittedBy',
         select: 'name email role district villageOrCity'
@@ -273,8 +279,14 @@ export const getAllChallenges = async (req, res, next) => {
       .populate({
         path: 'acceptedByUniversity',
         select: 'name email institution universityDepartment'
-      })
-      .sort({ createdAt: -1 });
+      });
+    if (req.user.role === 'government') {
+      challengeQuery.populate({
+        path: 'industryFundedBy',
+        select: 'name email organizationName organizationType'
+      });
+    }
+    const challenges = await challengeQuery.sort({ createdAt: -1 });
 
     res.status(200).json({
       success: true,
@@ -291,13 +303,16 @@ export const getAllChallenges = async (req, res, next) => {
 // @access  Private
 export const getChallengeById = async (req, res, next) => {
   try {
+    if (req.user.role === 'industry') {
+      return res.status(403).json({ success: false, message: 'Use Industry project opportunities for eligible details' });
+    }
     const { id } = req.params;
 
     const challengeQuery = Challenge.findById(id);
     if (req.user.role === 'government' || req.user.role === 'citizen') {
       challengeQuery.select('+citizenContactNumber');
     }
-    const challenge = await challengeQuery
+    challengeQuery
       .populate({
         path: 'submittedBy',
         select: 'name email role district villageOrCity'
@@ -310,6 +325,13 @@ export const getChallengeById = async (req, res, next) => {
         path: 'acceptedByUniversity',
         select: 'name email institution universityDepartment'
       });
+    if (req.user.role === 'government') {
+      challengeQuery.populate({
+        path: 'industryFundedBy',
+        select: 'name email organizationName organizationType'
+      });
+    }
+    const challenge = await challengeQuery;
 
     if (!challenge) {
       return res.status(404).json({
@@ -706,83 +728,6 @@ export const cancelChallenge = async (req, res, next) => {
     return res.status(200).json({ success: true, message: 'Challenge cancelled successfully', data: challenge });
   } catch (error) {
     if (error.kind === 'ObjectId') return res.status(404).json({ success: false, message: 'Challenge not found' });
-    next(error);
-  }
-};
-
-// @desc    Approve government funding for an assigned challenge
-// @route   PATCH /api/challenges/:id/funding
-// @access  Private - Government only
-export const approveChallengeFunding = async (req, res, next) => {
-  try {
-    const { fundingAmount } = req.body;
-    const amount = Number(fundingAmount);
-
-    if (!Number.isFinite(amount) || amount <= 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'A positive funding amount is required'
-      });
-    }
-
-    const user = await User.findById(req.user.id);
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
-    }
-    if (user.role !== 'government') {
-      return res.status(403).json({
-        success: false,
-        message: 'Only government users can approve challenge funding'
-      });
-    }
-
-    const challenge = await Challenge.findById(req.params.id);
-    if (!challenge) {
-      return res.status(404).json({
-        success: false,
-        message: 'Challenge not found'
-      });
-    }
-    if (
-      challenge.status !== 'accepted'
-      || !challenge.assignedUniversity
-      || challenge.assignmentStatus !== 'accepted'
-      || !challenge.acceptedByUniversity
-      || challenge.acceptedByUniversity.toString() !== challenge.assignedUniversity.toString()
-    ) {
-      return res.status(400).json({
-        success: false,
-        message: 'The assigned university must accept the challenge before funding approval'
-      });
-    }
-
-    challenge.fundingAmount = amount;
-    challenge.fundingStatus = 'approved';
-    challenge.fundingApprovedBy = user._id;
-    challenge.fundingApprovedAt = new Date();
-    challenge.status = 'funding_approved';
-    await challenge.save();
-    await challenge.populate([
-      { path: 'submittedBy', select: 'name email role district villageOrCity' },
-      { path: 'assignedUniversity', select: 'name email institution universityDepartment' },
-      { path: 'fundingApprovedBy', select: 'name email role' }
-    ]);
-
-    res.status(200).json({
-      success: true,
-      message: 'Government funding approved successfully',
-      data: challenge
-    });
-  } catch (error) {
-    if (error.kind === 'ObjectId') {
-      return res.status(404).json({
-        success: false,
-        message: 'Challenge not found'
-      });
-    }
     next(error);
   }
 };

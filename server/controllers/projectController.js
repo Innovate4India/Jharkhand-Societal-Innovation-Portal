@@ -95,11 +95,12 @@ export const createProject = async (req, res, next) => {
         message: 'Cancelled challenges cannot have projects created'
       });
     }
-    if (challengeDoc.fundingStatus !== 'approved' || challengeDoc.status !== 'funding_approved') {
-      return res.status(400).json({
-        success: false,
-        message: 'A challenge must have government funding approval before project creation'
-      });
+    if (
+      challengeDoc.industryFundingStatus !== 'accepted'
+      || !challengeDoc.industryFundingAcceptedBy
+      || challengeDoc.industryFundingAcceptedBy.toString() !== userId
+    ) {
+      return res.status(400).json({ success: false, message: 'University must accept Industry sponsorship before project creation' });
     }
 
     // Validate project type
@@ -363,6 +364,19 @@ export const updateProjectStatus = async (req, res, next) => {
 
     // If university is updating, restrict to progress-related statuses
     if (isProjectOwner && !isGovernment) {
+      if (['prototype', 'testing', 'deployed', 'completed'].includes(status)) {
+        const challenge = await Challenge.findById(project.challenge).select('assignedUniversity assignmentStatus acceptedByUniversity cancelledAt industryFundingStatus industryFundingAcceptedBy');
+        const executionAuthorized = challenge
+          && challenge.assignedUniversity?.toString() === userId
+          && challenge.assignmentStatus === 'accepted'
+          && challenge.acceptedByUniversity?.toString() === userId
+          && !challenge.cancelledAt
+          && challenge.industryFundingStatus === 'accepted'
+          && challenge.industryFundingAcceptedBy?.toString() === userId;
+        if (!executionAuthorized) {
+          return res.status(403).json({ success: false, message: 'Industry funding must be accepted by the University before project execution starts' });
+        }
+      }
       const progressStatuses = ['prototype', 'testing', 'deployed', 'completed'];
       if (!progressStatuses.includes(status)) {
         return res.status(403).json({

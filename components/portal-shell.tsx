@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   Bell,
+  BriefcaseBusiness,
   CheckCircle2,
   ChevronDown,
   FilePlus2,
@@ -34,6 +35,7 @@ import { cn } from "@/lib/utils";
 import ChallengesPage from "@/components/challenges-page";
 import GovernmentDashboard from "@/components/government-dashboard";
 import UniversityDashboard from "@/components/university-dashboard";
+import IndustryDashboard from "@/components/industry-dashboard";
 import SahayakChat, { OfflineHomepageSahayak } from "@/components/sahayak-chat";
 import DashboardShell from "@/components/dashboard-shell";
 
@@ -42,9 +44,10 @@ type View =
   | "citizen"
   | "government"
   | "university"
+  | "industry"
   | "submit"
   | "challenges";
-type Role = "Citizen" | "Government" | "University";
+type Role = "Citizen" | "Government" | "University" | "Industry";
 
 const districts = [
   "Bokaro",
@@ -144,7 +147,7 @@ function Sidebar({
       </div>
       <nav className="mt-8 flex flex-col gap-2">
         <button
-          onClick={() => setView(role === "Government" ? "government" : role === "University" ? "university" : "citizen")}
+          onClick={() => setView(role === "Government" ? "government" : role === "University" ? "university" : role === "Industry" ? "industry" : "citizen")}
           className={cn(
             "flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium",
             (view === "citizen" || view === "government" || view === "university")
@@ -153,7 +156,7 @@ function Sidebar({
           )}
         >
           <LayoutDashboard className="size-4" />
-          {role === "Government" ? "Government dashboard" : role === "University" ? "University dashboard" : "My dashboard"}
+          {role === "Government" ? "Government dashboard" : role === "University" ? "University dashboard" : role === "Industry" ? "Industry dashboard" : "My dashboard"}
         </button>
         {role === "Citizen" && (
           <>
@@ -203,6 +206,7 @@ function Sidebar({
             ))}
           </>
         )}
+        {role === "Industry" && <button onClick={() => setView("industry")} className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-white/80 hover:bg-[#0B2D6B] hover:text-white"><BriefcaseBusiness className="size-4" />Sponsorship opportunities</button>}
       </nav>
       <button
         type="button"
@@ -800,7 +804,7 @@ export default function PortalShell() {
       return;
     }
     if ((nextView === "submit" || nextView === "challenges") && role !== "Citizen") {
-      setView(role === "Government" ? "government" : "university");
+      setView(role === "Government" ? "government" : role === "University" ? "university" : role === "Industry" ? "industry" : "citizen");
       return;
     }
     setView(nextView);
@@ -816,15 +820,15 @@ export default function PortalShell() {
         return;
       }
       const userRole = response.data.user.role;
-      if (!["citizen", "government", "university"].includes(userRole)) {
+      if (!["citizen", "government", "university", "industry"].includes(userRole)) {
         clearAuthToken();
         router.replace("/login");
         return;
       }
-      const nextRole = userRole === "government" ? "Government" : userRole === "university" ? "University" : "Citizen";
+      const nextRole = userRole === "government" ? "Government" : userRole === "university" ? "University" : userRole === "industry" ? "Industry" : "Citizen";
       setRole(nextRole);
       setAuthenticated(true);
-      setView(nextRole === "Government" ? "government" : nextRole === "University" ? "university" : "citizen");
+      setView(nextRole === "Government" ? "government" : nextRole === "University" ? "university" : nextRole === "Industry" ? "industry" : "citizen");
     }
     void restoreSession();
   }, [router]);
@@ -844,6 +848,8 @@ export default function PortalShell() {
           ? "Government Dashboard"
           : view === "university"
             ? "University Dashboard"
+            : view === "industry"
+              ? "Industry Dashboard"
                 : "My dashboard";
   return (
     <div className="flex min-h-screen bg-slate-50">
@@ -886,6 +892,8 @@ export default function PortalShell() {
           <GovernmentDashboard requestedAction={governmentAction} />
         ) : view === "university" ? (
           <UniversityDashboard />
+        ) : view === "industry" ? (
+          <IndustryDashboard />
         ) : (
           <Dashboard setView={guardedSetView} />
         )}
