@@ -2,6 +2,7 @@
 import Challenge from '../models/Challenge.js';
 import Project from '../models/Project.js';
 import Sponsorship from '../models/Sponsorship.js';
+import User from '../models/User.js';
 
 const opportunityFilter = {
   status: { $in: ['approved', 'assigned', 'accepted', 'funding_approved', 'in_progress'] },
@@ -89,11 +90,16 @@ export const createSponsorship = async (req, res, next) => {
     const { project: projectId, challenge: challengeId, amount, expertise = '', notes = '', contactPerson = '', contactEmail = '', contactPhone = '' } = req.body;
     const numericAmount = Number(amount);
     if ((!validId(projectId) && !validId(challengeId)) || !Number.isFinite(numericAmount) || numericAmount <= 0) {
-      return res.status(400).json({ success: false, message: 'A valid project and positive funding amount are required' });
+      return res.status(400).json({ success: false, message: 'A valid challenge and positive funding amount are required' });
     }
     if (typeof contactPerson !== 'string' || typeof contactEmail !== 'string' || typeof contactPhone !== 'string'
       || !contactPerson.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail) || !/^[6-9]\d{9}$/.test(contactPhone)) {
       return res.status(400).json({ success: false, message: 'Valid contact person, email, and Indian phone number are required' });
+    }
+
+    const industry = await User.findOne({ _id: req.user.id, role: 'industry' }).select('organizationName');
+    if (!industry || !industry.organizationName?.trim()) {
+      return res.status(403).json({ success: false, message: 'An authenticated Industry organization is required to submit a funding proposal' });
     }
 
     const project = validId(projectId) ? await Project.findById(projectId).populate('challenge') : null;
@@ -105,50 +111,16 @@ export const createSponsorship = async (req, res, next) => {
     }
 
     const currentStatus = normalizeFundingStatus(challenge.industryFundingStatus);
-    const existing = await Sponsorship.findOne({ challenge: challenge._id, industry: req.user.id }).sort({ createdAt: -1 });
-
-    if (currentStatus === 'proposal_accepted' || currentStatus === 'funded') {
-      if (!existing) {
-        return res.status(400).json({ success: false, message: 'University must accept the funding proposal before final funding can be recorded' });
-      }
-      existing.amount = numericAmount;
-      existing.expertise = expertise;
-      existing.notes = notes;
-      existing.contactPerson = contactPerson;
-      existing.contactEmail = contactEmail;
-      existing.contactPhone = contactPhone;
-      existing.status = 'funded';
-      existing.approvedAt = new Date();
-      await existing.save();
-
-      const now = new Date();
-      challenge.industryFundingStatus = 'funded';
-      challenge.industryFundedBy = req.user.id;
-      challenge.industryFundingAmount = numericAmount;
-      challenge.industryFundingAt = now;
-      challenge.industryFundingAcceptedBy = challenge.industryFundingAcceptedBy || challenge.assignedUniversity;
-      challenge.industryFundingAcceptedAt = challenge.industryFundingAcceptedAt || now;
-      challenge.industryFundingContactPerson = contactPerson;
-      challenge.industryFundingContactEmail = contactEmail;
-      challenge.industryFundingContactPhone = contactPhone;
-      challenge.industryFundingMessage = notes;
-      challenge.fundingStatus = 'approved';
-      challenge.fundingAmount = numericAmount;
-      challenge.fundingApprovedBy = req.user.id;
-      challenge.fundingApprovedAt = now;
-      challenge.status = 'funding_approved';
-      await challenge.save();
-
-      if (project) await Project.findByIdAndUpdate(project._id, { $addToSet: { industryPartners: req.user.id } });
-      await existing.populate([
-        { path: 'project', select: 'title description status estimatedBudget university universityDepartment' },
-        { path: 'challenge', select: 'title category district priority status' }
-      ]);
-      return res.status(200).json({ success: true, message: 'Final funding recorded successfully', data: existing });
+    const activeProposal = await Sponsorship.findOne({
+      challenge: challenge._id,
+      status: { $in: ['pending', 'approved', 'accepted', 'funded'] }
+    }).sort({ createdAt: -1 });
+    if (activeProposal) {
+      return res.status(409).json({ success: false, message: 'A funding proposal or funding record is already active for this problem' });
     }
 
-    if (existing && ['pending', 'approved', 'accepted', 'funded'].includes(existing.status)) {
-      return res.status(409).json({ success: false, message: 'A funding proposal or funding record is already active for this problem' });
+    if (currentStatus === 'proposal_accepted' || currentStatus === 'funded') {
+      return res.status(409).json({ success: false, message: 'This funding proposal has already been accepted by the University' });
     }
 
     const sponsorship = await Sponsorship.create({
@@ -251,7 +223,7 @@ export const getUniversitySponsorships = async (req, res, next) => {
     const sponsorships = await Sponsorship.find({ $or: [{ project: { $in: projects.map((p) => p._id) } }, { challenge: { $in: challenges.map((c) => c._id) } }] })
       .populate('industry', 'organizationName organizationType expertise name email')
       .populate('project', 'title status')
-      .populate('challenge', 'title industryFundingStatus');
+      .populate('challenge', 'title industryFundingStatus industryFundingContactPerson industryFundingContactEmail industryFundingContactPhone industryFundingAmount industryFundingMessage');
     res.json({ success: true, data: sponsorships });
   } catch (error) { next(error); }
 };
