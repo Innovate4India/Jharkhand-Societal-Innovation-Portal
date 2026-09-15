@@ -248,6 +248,10 @@ export async function acceptUniversitySponsorship(challengeId: string) {
   return apiCall<any>(`/api/industry/challenges/${encodeURIComponent(challengeId)}/funding/accept`, { method: 'PATCH' })
 }
 
+export async function rejectUniversitySponsorship(challengeId: string) {
+  return apiCall<any>(`/api/industry/challenges/${encodeURIComponent(challengeId)}/funding/reject`, { method: 'PATCH' })
+}
+
 export async function acceptIndustryFunding(challengeId: string) {
   return apiCall<any>(`/api/industry/challenges/${encodeURIComponent(challengeId)}/funding/accept`, { method: 'PATCH' })
 }

@@ -80,6 +80,7 @@ const challengeSchema = new mongoose.Schema(
           'cancelled',
           'in_progress',
           'resolved',
+          'completed',
           'rejected'
         ],
         message: 'Status must be one of the predefined values'
@@ -235,8 +236,20 @@ const challengeSchema = new mongoose.Schema(
     },
     industryFundingStatus: {
       type: String,
-      enum: ['pending', 'eligible', 'funded_pending_university_acceptance', 'accepted', 'rejected', 'not_required'],
-      default: 'pending'
+      enum: [
+        'not_eligible',
+        'proposal_pending',
+        'proposal_accepted',
+        'proposal_rejected',
+        'funded',
+        'pending',
+        'eligible',
+        'funded_pending_university_acceptance',
+        'accepted',
+        'rejected',
+        'not_required'
+      ],
+      default: 'not_eligible'
     },
     industryFundedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     industryFundingAmount: { type: Number, min: 0, default: null },

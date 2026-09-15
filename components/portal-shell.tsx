@@ -713,7 +713,13 @@ function Submit({ setView }: { setView: (v: View) => void }) {
 function Dashboard({ setView }: { setView: (v: View) => void }) {
   const currentUser = getCurrentUserFromStorage();
   const [submittedCount, setSubmittedCount] = useState<number | null>(null);
-  const [submittedChallenges, setSubmittedChallenges] = useState<Array<{ _id: string; title: string; status: string; priority: string; citizenContactNumber?: string; assignedUniversity?: { name?: string; institution?: string }; fundingAmount?: number; fundingStatus?: string }>>([]);
+  const [submittedChallenges, setSubmittedChallenges] = useState<Array<{ _id: string; title: string; status: string }>>([]);
+
+  function getCitizenStatus(status: string) {
+    const normalized = String(status || '').trim().toLowerCase();
+    return ['completed', 'resolved'].includes(normalized) ? 'COMPLETE' : 'PENDING';
+  }
+
   useEffect(() => {
     async function loadSubmittedChallenges() {
       if (!currentUser?._id) {
@@ -725,29 +731,30 @@ function Dashboard({ setView }: { setView: (v: View) => void }) {
         setSubmittedCount(0);
         return;
       }
-      const challenges = response.data || [];
-      setSubmittedChallenges(challenges.filter((challenge) => {
+      const allChallenges = response.data || [];
+      const myChallenges = allChallenges.filter((challenge) => {
         const submittedById = (challenge.submittedBy as { _id?: string } | undefined)?._id;
         return submittedById === currentUser._id;
-      }));
-      const count = challenges.filter((challenge) => {
-        const submittedById = (challenge.submittedBy as { _id?: string } | undefined)?._id;
-        return submittedById === currentUser._id;
-      }).length;
-      setSubmittedCount(count);
+      });
+      setSubmittedChallenges(myChallenges.map((challenge) => ({
+        _id: challenge._id,
+        title: challenge.title,
+        status: getCitizenStatus(challenge.status),
+      })));
+      setSubmittedCount(myChallenges.length);
     }
     void loadSubmittedChallenges();
   }, [currentUser?._id]);
+
   return (
     <DashboardShell
       eyebrow="Citizen dashboard"
       title="Your community dashboard"
       greeting={`Good morning, ${currentUser?.name || "there"}`}
-      subtitle="Here is what is happening with your contributions."
+      subtitle="Track your submitted problems with a simple status update."
       stats={[
-        { label: "Problems submitted", value: submittedCount === null ? "—" : String(submittedCount), note: "Based on submitted challenges", icon: FileText },
-        { label: "Solutions supported", value: String(submittedChallenges.filter((challenge) => challenge.assignedUniversity).length), note: "Challenges with university support", icon: Users },
-        { label: "Impact points", value: "0", note: "No impact data available yet", icon: CheckCircle2 },
+        { label: "Problems submitted", value: submittedCount === null ? "—" : String(submittedCount), note: "Submitted by you", icon: FileText },
+        { label: "Current status", value: submittedChallenges.some((challenge) => challenge.status === 'COMPLETE') ? 'COMPLETE' : 'PENDING', note: 'Latest visible update', icon: CheckCircle2 },
       ]}
       showCitizenTagline
       actions={<button onClick={() => setView("submit")} className="rounded-lg bg-[#E31E24] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#C8171D]">Submit a problem</button>}
@@ -758,12 +765,11 @@ function Dashboard({ setView }: { setView: (v: View) => void }) {
           {submittedChallenges.length ? submittedChallenges.map((challenge) => (
             <div key={challenge._id} className="rounded-xl border border-slate-100 bg-slate-50 p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <p className="min-w-0 flex-1 break-words font-bold text-slate-800">{challenge.title}</p>
-                <span className="shrink-0 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-bold capitalize text-amber-800">{challenge.status === 'resolved' ? 'Problem Solved' : challenge.status.replaceAll('_', ' ')}</span>
+                <p className="min-w-0 flex-1 break-words font-bold text-slate-800">Problem: {challenge.title}</p>
+                <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${challenge.status === 'COMPLETE' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800'}`}>
+                  {challenge.status}
+                </span>
               </div>
-              <p className="mt-2 text-xs text-slate-500">Priority: {challenge.priority} · University: {challenge.assignedUniversity?.institution || challenge.assignedUniversity?.name || 'Not assigned'}</p>
-              {challenge.citizenContactNumber && <p className="mt-1 text-xs text-slate-500">Contact number: {challenge.citizenContactNumber}</p>}
-              {challenge.fundingStatus === 'approved' && <p className="mt-1 text-xs font-semibold text-emerald-700">Funding approved: ₹{challenge.fundingAmount?.toLocaleString('en-IN')}</p>}
             </div>
           )) : <p className="text-sm text-slate-500">Your submitted problems will appear here.</p>}
         </div>
@@ -775,12 +781,7 @@ function Dashboard({ setView }: { setView: (v: View) => void }) {
         <h3 className="mt-2 text-xl font-bold text-slate-950">
           Your voice can start a solution.
         </h3>
-        <button
-          onClick={() => setView("submit")}
-          className="mt-5 rounded-lg bg-emerald-800 px-4 py-2.5 text-sm font-bold text-white"
-        >
-          Submit a problem
-        </button>
+        <button onClick={() => setView("submit")} className="mt-5 rounded-lg bg-emerald-800 px-4 py-2.5 text-sm font-bold text-white">Submit a problem</button>
       </div>
     </DashboardShell>
   );

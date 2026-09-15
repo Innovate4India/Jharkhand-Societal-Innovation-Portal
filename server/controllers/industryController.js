@@ -1,4 +1,4 @@
-import mongoose from 'mongoose';
+﻿import mongoose from 'mongoose';
 import Challenge from '../models/Challenge.js';
 import Project from '../models/Project.js';
 import Sponsorship from '../models/Sponsorship.js';
@@ -8,11 +8,43 @@ const opportunityFilter = {
   assignmentStatus: 'accepted',
   assignedUniversity: { $ne: null },
   cancelledAt: null,
-  industryFundingStatus: { $in: ['eligible', 'pending'] }
+  $or: [
+    { industryFundingStatus: { $in: ['proposal_pending', 'proposal_accepted', 'eligible', 'pending', 'accepted'] } },
+    { industryFundingStatus: { $exists: false } }
+  ]
 };
 
 function validId(id) {
   return mongoose.Types.ObjectId.isValid(id);
+}
+
+function normalizeFundingStatus(status) {
+  switch (status) {
+    case 'not_eligible':
+    case 'not_required':
+      return 'not_eligible';
+    case 'pending':
+    case 'eligible':
+    case 'proposal_pending':
+      return 'proposal_pending';
+    case 'funded_pending_university_acceptance':
+    case 'accepted':
+    case 'proposal_accepted':
+      return 'proposal_accepted';
+    case 'rejected':
+    case 'proposal_rejected':
+      return 'proposal_rejected';
+    case 'funded':
+      return 'funded';
+    default:
+      return status || 'not_eligible';
+  }
+}
+
+function isChallengeEligibleForIndustry(challenge) {
+  if (!challenge) return false;
+  if (!challenge.assignedUniversity || challenge.assignmentStatus !== 'accepted' || challenge.cancelledAt) return false;
+  return ['approved', 'assigned', 'accepted', 'funding_approved', 'in_progress'].includes(challenge.status);
 }
 
 export const getOpportunities = async (req, res, next) => {
@@ -45,7 +77,7 @@ export const getIndustryProject = async (req, res, next) => {
   try {
     if (!validId(req.params.id)) return res.status(404).json({ success: false, message: 'Project not found' });
     const project = await Project.findById(req.params.id)
-      .populate({ path: 'challenge', match: opportunityFilter, select: 'title description category district priority status assignmentStatus assignedUniversity cancelledAt' })
+      .populate({ path: 'challenge', match: opportunityFilter, select: 'title description category district priority status assignmentStatus assignedUniversity cancelledAt industryFundingStatus' })
       .populate('university', 'name institution universityDepartment');
     if (!project || !project.challenge) return res.status(404).json({ success: false, message: 'Opportunity is not eligible' });
     res.json({ success: true, data: project });
@@ -63,34 +95,95 @@ export const createSponsorship = async (req, res, next) => {
       || !contactPerson.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail) || !/^[6-9]\d{9}$/.test(contactPhone)) {
       return res.status(400).json({ success: false, message: 'Valid contact person, email, and Indian phone number are required' });
     }
+
     const project = validId(projectId) ? await Project.findById(projectId).populate('challenge') : null;
     const challenge = project?.challenge || await Challenge.findById(challengeId);
     if (!challenge) return res.status(404).json({ success: false, message: 'Eligible problem not found' });
-    if (!['approved', 'assigned', 'accepted', 'funding_approved', 'in_progress'].includes(challenge.status)
-      || challenge.assignmentStatus !== 'accepted' || !challenge.assignedUniversity || challenge.cancelledAt) {
-      return res.status(400).json({ success: false, message: 'Only verified, university-accepted, non-cancelled projects can be sponsored' });
+
+    if (!isChallengeEligibleForIndustry(challenge)) {
+      return res.status(400).json({ success: false, message: 'Only verified, university-accepted, non-cancelled problems can receive industry funding proposals' });
     }
-    const existing = await Sponsorship.findOne({ challenge: challenge._id, status: { $in: ['pending', 'approved', 'accepted'] } });
-    if (existing) return res.status(409).json({ success: false, message: 'This project already has an active sponsorship' });
+
+    const currentStatus = normalizeFundingStatus(challenge.industryFundingStatus);
+    const existing = await Sponsorship.findOne({ challenge: challenge._id, industry: req.user.id }).sort({ createdAt: -1 });
+
+    if (currentStatus === 'proposal_accepted' || currentStatus === 'funded') {
+      if (!existing) {
+        return res.status(400).json({ success: false, message: 'University must accept the funding proposal before final funding can be recorded' });
+      }
+      existing.amount = numericAmount;
+      existing.expertise = expertise;
+      existing.notes = notes;
+      existing.contactPerson = contactPerson;
+      existing.contactEmail = contactEmail;
+      existing.contactPhone = contactPhone;
+      existing.status = 'funded';
+      existing.approvedAt = new Date();
+      await existing.save();
+
+      const now = new Date();
+      challenge.industryFundingStatus = 'funded';
+      challenge.industryFundedBy = req.user.id;
+      challenge.industryFundingAmount = numericAmount;
+      challenge.industryFundingAt = now;
+      challenge.industryFundingAcceptedBy = challenge.industryFundingAcceptedBy || challenge.assignedUniversity;
+      challenge.industryFundingAcceptedAt = challenge.industryFundingAcceptedAt || now;
+      challenge.industryFundingContactPerson = contactPerson;
+      challenge.industryFundingContactEmail = contactEmail;
+      challenge.industryFundingContactPhone = contactPhone;
+      challenge.industryFundingMessage = notes;
+      challenge.fundingStatus = 'approved';
+      challenge.fundingAmount = numericAmount;
+      challenge.fundingApprovedBy = req.user.id;
+      challenge.fundingApprovedAt = now;
+      challenge.status = 'funding_approved';
+      await challenge.save();
+
+      if (project) await Project.findByIdAndUpdate(project._id, { $addToSet: { industryPartners: req.user.id } });
+      await existing.populate([
+        { path: 'project', select: 'title description status estimatedBudget university universityDepartment' },
+        { path: 'challenge', select: 'title category district priority status' }
+      ]);
+      return res.status(200).json({ success: true, message: 'Final funding recorded successfully', data: existing });
+    }
+
+    if (existing && ['pending', 'approved', 'accepted', 'funded'].includes(existing.status)) {
+      return res.status(409).json({ success: false, message: 'A funding proposal or funding record is already active for this problem' });
+    }
+
     const sponsorship = await Sponsorship.create({
-      industry: req.user.id, project: project?._id || null, challenge: challenge._id,
-      amount: numericAmount, expertise, notes, contactPerson, contactEmail, contactPhone, status: 'pending'
+      industry: req.user.id,
+      project: project?._id || null,
+      challenge: challenge._id,
+      amount: numericAmount,
+      expertise,
+      notes,
+      contactPerson,
+      contactEmail,
+      contactPhone,
+      status: 'pending'
     });
+
     const now = new Date();
-    await Challenge.findByIdAndUpdate(challenge._id, {
-      industryFundingStatus: 'funded_pending_university_acceptance',
-      industryFundedBy: req.user.id, industryFundingAmount: numericAmount, industryFundingAt: now,
-      industryFundingContactPerson: contactPerson, industryFundingContactEmail: contactEmail,
-      industryFundingContactPhone: contactPhone, industryFundingMessage: notes
-    });
+    challenge.industryFundingStatus = 'proposal_pending';
+    challenge.industryFundedBy = req.user.id;
+    challenge.industryFundingAmount = numericAmount;
+    challenge.industryFundingAt = now;
+    challenge.industryFundingContactPerson = contactPerson;
+    challenge.industryFundingContactEmail = contactEmail;
+    challenge.industryFundingContactPhone = contactPhone;
+    challenge.industryFundingMessage = notes;
+    await challenge.save();
+
     if (project) await Project.findByIdAndUpdate(project._id, { $addToSet: { industryPartners: req.user.id } });
     await sponsorship.populate([
       { path: 'project', select: 'title description status estimatedBudget university universityDepartment' },
       { path: 'challenge', select: 'title category district priority status' }
     ]);
-    res.status(201).json({ success: true, message: 'Industry sponsorship submitted for university acceptance', data: sponsorship });
+
+    res.status(201).json({ success: true, message: 'Funding proposal sent to the university for review', data: sponsorship });
   } catch (error) {
-    if (error.code === 11000) return res.status(409).json({ success: false, message: 'This project already has an active sponsorship' });
+    if (error.code === 11000) return res.status(409).json({ success: false, message: 'This problem already has an active funding proposal' });
     next(error);
   }
 };
@@ -100,23 +193,54 @@ export const acceptSponsorship = async (req, res, next) => {
     if (!validId(req.params.id)) return res.status(404).json({ success: false, message: 'Challenge not found' });
     const challenge = await Challenge.findById(req.params.id);
     if (!challenge || challenge.assignedUniversity?.toString() !== req.user.id || challenge.assignmentStatus !== 'accepted') {
-      return res.status(403).json({ success: false, message: 'Only the assigned university can accept this sponsorship' });
+      return res.status(403).json({ success: false, message: 'Only the assigned university can accept this funding proposal' });
     }
-    const sponsorship = await Sponsorship.findOne({ challenge: challenge._id, status: 'pending' });
-    if (!sponsorship) return res.status(404).json({ success: false, message: 'No pending sponsorship found' });
+
+    const sponsorship = await Sponsorship.findOne({ challenge: challenge._id, status: { $in: ['pending', 'approved'] } }).sort({ createdAt: -1 });
+    if (!sponsorship) return res.status(404).json({ success: false, message: 'No pending funding proposal found' });
+
     sponsorship.status = 'accepted';
     sponsorship.approvedAt = new Date();
     await sponsorship.save();
-    challenge.industryFundingStatus = 'accepted';
+
+    challenge.industryFundingStatus = 'proposal_accepted';
     challenge.industryFundingAcceptedBy = req.user.id;
     challenge.industryFundingAcceptedAt = sponsorship.approvedAt;
-    challenge.fundingStatus = 'approved';
+    challenge.fundingStatus = 'pending';
     challenge.fundingAmount = sponsorship.amount;
-    challenge.fundingApprovedAt = sponsorship.approvedAt;
-    challenge.status = 'funding_approved';
+    challenge.fundingApprovedAt = null;
+    challenge.status = 'accepted';
     await challenge.save();
+
     if (sponsorship.project) await Project.findByIdAndUpdate(sponsorship.project, { $addToSet: { industryPartners: sponsorship.industry } });
-    res.json({ success: true, message: 'Industry sponsorship accepted', data: challenge });
+    res.json({ success: true, message: 'Funding proposal accepted', data: challenge });
+  } catch (error) { next(error); }
+};
+
+export const rejectSponsorship = async (req, res, next) => {
+  try {
+    if (!validId(req.params.id)) return res.status(404).json({ success: false, message: 'Challenge not found' });
+    const challenge = await Challenge.findById(req.params.id);
+    if (!challenge || challenge.assignedUniversity?.toString() !== req.user.id || challenge.assignmentStatus !== 'accepted') {
+      return res.status(403).json({ success: false, message: 'Only the assigned university can reject this funding proposal' });
+    }
+
+    const sponsorship = await Sponsorship.findOne({ challenge: challenge._id, status: { $in: ['pending', 'approved'] } }).sort({ createdAt: -1 });
+    if (!sponsorship) return res.status(404).json({ success: false, message: 'No pending funding proposal found' });
+
+    sponsorship.status = 'rejected';
+    sponsorship.approvedAt = new Date();
+    await sponsorship.save();
+
+    challenge.industryFundingStatus = 'proposal_rejected';
+    challenge.fundingStatus = 'pending';
+    challenge.fundingAmount = 0;
+    challenge.fundingApprovedBy = null;
+    challenge.fundingApprovedAt = null;
+    challenge.status = 'accepted';
+    await challenge.save();
+
+    res.json({ success: true, message: 'Funding proposal rejected', data: challenge });
   } catch (error) { next(error); }
 };
 

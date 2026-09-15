@@ -4,6 +4,24 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { isAllowedChallengeType, challengeUploadDirectory } from '../middleware/challengeUpload.js';
 
+function toCitizenStatus(status) {
+  const normalized = String(status || '').trim().toLowerCase();
+  if (['completed', 'resolved'].includes(normalized)) return 'COMPLETE';
+  if (['submitted', 'under_review', 'approved', 'assigned', 'accepted', 'funding_approved', 'cancelled', 'in_progress', 'project_proposed', 'prototype', 'testing', 'deployed', 'rejected', 'pending', 'funded', 'proposal_pending', 'proposal_accepted', 'proposal_rejected', 'not_eligible', 'funded_pending_university_acceptance', 'not_required'].includes(normalized)) {
+    return 'PENDING';
+  }
+  return 'PENDING';
+}
+
+function serializeCitizenChallenge(challenge) {
+  if (!challenge) return null;
+  return {
+    _id: challenge._id,
+    title: challenge.title,
+    status: toCitizenStatus(challenge.status)
+  };
+}
+
 async function removeUploadedFiles(files = []) {
   await Promise.all(files.map((file) => fs.unlink(file.path).catch(() => undefined)));
 }
@@ -198,8 +216,8 @@ export const acceptChallenge = async (req, res, next) => {
     challenge.acceptedByUniversity = req.user.id;
     challenge.acceptedAt = new Date();
     challenge.status = 'accepted';
-    if (!challenge.industryFundingStatus || challenge.industryFundingStatus === 'pending') {
-      challenge.industryFundingStatus = 'eligible';
+    if (!challenge.industryFundingStatus || ['pending', 'eligible', 'not_eligible', 'proposal_pending'].includes(challenge.industryFundingStatus)) {
+      challenge.industryFundingStatus = 'proposal_pending';
     }
     // Recover legacy records that were funded before acceptance: funding must
     // be explicitly approved again after this acceptance.
@@ -264,7 +282,7 @@ export const getAllChallenges = async (req, res, next) => {
 
     // Get challenges sorted by newest first
     const challengeQuery = Challenge.find(filter);
-    if (req.user.role === 'government' || req.user.role === 'citizen') {
+    if (req.user.role === 'government') {
       challengeQuery.select('+citizenContactNumber');
     }
     challengeQuery
@@ -287,11 +305,14 @@ export const getAllChallenges = async (req, res, next) => {
       });
     }
     const challenges = await challengeQuery.sort({ createdAt: -1 });
+    const serializedChallenges = req.user.role === 'citizen'
+      ? challenges.map(serializeCitizenChallenge)
+      : challenges;
 
     res.status(200).json({
       success: true,
-      count: challenges.length,
-      data: challenges
+      count: serializedChallenges.length,
+      data: serializedChallenges
     });
   } catch (error) {
     next(error);
@@ -309,7 +330,7 @@ export const getChallengeById = async (req, res, next) => {
     const { id } = req.params;
 
     const challengeQuery = Challenge.findById(id);
-    if (req.user.role === 'government' || req.user.role === 'citizen') {
+    if (req.user.role === 'government') {
       challengeQuery.select('+citizenContactNumber');
     }
     challengeQuery
@@ -355,7 +376,7 @@ export const getChallengeById = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      data: challenge
+      data: req.user.role === 'citizen' ? serializeCitizenChallenge(challenge) : challenge
     });
   } catch (error) {
     if (error.kind === 'ObjectId') {

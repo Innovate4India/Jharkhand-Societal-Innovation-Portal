@@ -96,11 +96,11 @@ export const createProject = async (req, res, next) => {
       });
     }
     if (
-      challengeDoc.industryFundingStatus !== 'accepted'
+      !['proposal_accepted', 'funded', 'accepted'].includes(challengeDoc.industryFundingStatus)
       || !challengeDoc.industryFundingAcceptedBy
       || challengeDoc.industryFundingAcceptedBy.toString() !== userId
     ) {
-      return res.status(400).json({ success: false, message: 'University must accept Industry sponsorship before project creation' });
+      return res.status(400).json({ success: false, message: 'University must accept the funding proposal and the actual funding must be recorded before project creation' });
     }
 
     // Validate project type
