@@ -8,6 +8,7 @@ import {
   BriefcaseBusiness,
   CheckCircle2,
   ChevronDown,
+  Coins,
   FilePlus2,
   FileText,
   Flag,
@@ -24,12 +25,16 @@ import {
 import ThemeToggle from "@/components/theme-toggle";
 import {
   createChallenge,
+  detectUrgency,
   getChallenges,
   getCurrentUser,
   clearAuthToken,
   getAuthToken,
   getCurrentUserFromStorage,
+  getMyRewards,
+  redeemMyReward,
   saveCurrentUser,
+  reverseGeocode,
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import ChallengesPage from "@/components/challenges-page";
@@ -233,15 +238,40 @@ function Topbar({
   open,
   setOpen,
   userName,
+  isCitizen,
+  rewardRefreshToken,
   onLogout,
 }: {
   title: string;
   open: boolean;
   setOpen: (v: boolean) => void;
   userName?: string;
+  isCitizen: boolean;
+  rewardRefreshToken: number;
   onLogout: () => void;
 }) {
   const [showMenu, setShowMenu] = useState(false);
+  const [impactTokens, setImpactTokens] = useState<number | null>(null);
+  const [loadingRewards, setLoadingRewards] = useState(false);
+
+  useEffect(() => {
+    if (!isCitizen) return;
+    let active = true;
+    setLoadingRewards(true);
+    void getMyRewards().then((response) => {
+      if (!active) return;
+      if (response.success) {
+        setImpactTokens(response.data?.summary.impactTokens ?? 0);
+      } else {
+        setImpactTokens((previous) => previous ?? 0);
+      }
+      setLoadingRewards(false);
+    });
+    return () => {
+      active = false;
+    };
+  }, [isCitizen, rewardRefreshToken]);
+
   return (
     <header className="mobile-portal-header flex h-20 min-w-0 items-center justify-between gap-2 border-b border-slate-200 bg-white px-3 sm:px-8">
       <div className="flex min-w-0 flex-1 items-center gap-3">
@@ -266,6 +296,17 @@ function Topbar({
         <ThemeToggle />
         <Search className="hidden size-4 text-slate-400 sm:block" />
         <Bell className="size-4 text-slate-500" />
+        {isCitizen && (
+          <span
+            className={`inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800 sm:px-2.5 ${loadingRewards ? "animate-pulse" : ""}`}
+            aria-label={`${impactTokens ?? 0} Impact Tokens`}
+            title={`${impactTokens ?? 0} Impact Tokens`}
+          >
+            <Coins className="size-4 shrink-0" aria-hidden="true" />
+            <span className="hidden sm:inline">Impact Tokens:</span>
+            <span>{impactTokens ?? 0}</span>
+          </span>
+        )}
         <div className="relative">
           <button
             onClick={() => setShowMenu(!showMenu)}
@@ -410,7 +451,17 @@ function Submit({ setView }: { setView: (v: View) => void }) {
   const [district, setDistrict] = useState("");
   const [contactNumber, setContactNumber] = useState("");
   const [urgency, setUrgency] = useState("Medium");
+  const [urgencySource, setUrgencySource] = useState<'ai_detected' | 'manually_adjusted' | 'fallback'>('fallback');
+  const [urgencyReason, setUrgencyReason] = useState("");
+  const [detectingUrgency, setDetectingUrgency] = useState(false);
+  const [urgencyManuallyAdjusted, setUrgencyManuallyAdjusted] = useState(false);
+  const [affected, setAffected] = useState("");
+  const [expectedImpact, setExpectedImpact] = useState("");
+  const [locationText, setLocationText] = useState("");
   const [touched, setTouched] = useState(false);
+  const [locationCoordinates, setLocationCoordinates] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [locationMessage, setLocationMessage] = useState("");
+  const [capturingLocation, setCapturingLocation] = useState(false);
   const required =
     !title.trim() || !description.trim() || !category || !district;
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -419,13 +470,18 @@ function Submit({ setView }: { setView: (v: View) => void }) {
     setError('');
     const formData = new FormData(e.currentTarget);
     const villageOrCity = String(formData.get('villageOrCity') || '').trim();
-    if (required || !villageOrCity || submitting) return;
+    if (required || submitting) return;
+    if (!selectedFiles.length) {
+      setError('Please upload at least one photo, video, or document as supporting evidence.');
+      return;
+    }
     if (contactNumber && !/^[6-9]\d{9}$/.test(contactNumber)) {
       setError('Enter a valid 10-digit Indian mobile number.');
       return;
     }
 
-    const priority = urgency.toLowerCase() as 'low' | 'medium' | 'high' | 'critical';
+    const finalUrgency = urgency.toUpperCase() as 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+    const priority = finalUrgency.toLowerCase() as 'low' | 'medium' | 'high' | 'critical';
     if (!['low', 'medium', 'high', 'critical'].includes(priority)) return;
     setSubmitting(true);
     const response = await createChallenge({
@@ -435,7 +491,13 @@ function Submit({ setView }: { setView: (v: View) => void }) {
       district,
       villageOrCity,
       priority,
+      urgency: finalUrgency,
+      urgencySource,
+      urgencyReason,
+      affected: affected.trim(),
+      expectedImpact: expectedImpact.trim(),
       ...(contactNumber ? { citizenContactNumber: contactNumber } : {}),
+      ...(locationCoordinates ? { location: locationCoordinates } : {}),
     }, selectedFiles);
     setSubmitting(false);
     if (!response.success) {
@@ -446,6 +508,28 @@ function Submit({ setView }: { setView: (v: View) => void }) {
       setSubmittedChallenge({ id: response.data._id, status: response.data.status, files: selectedFiles.map((file) => file.name) });
     }
     setSubmitted(true);
+  }
+  async function detectProblemUrgency() {
+    if (urgencyManuallyAdjusted || !title.trim() || !description.trim() || detectingUrgency) return;
+    setDetectingUrgency(true);
+    const response = await detectUrgency({
+      title: title.trim(),
+      description: description.trim(),
+      category,
+      affected: affected.trim(),
+      expectedImpact: expectedImpact.trim(),
+      location: locationText.trim(),
+    });
+    setDetectingUrgency(false);
+    if (!response.success || !response.data) {
+      setUrgency('Medium');
+      setUrgencySource('fallback');
+      setUrgencyReason('Automatic detection was unavailable. Medium urgency was used.');
+      return;
+    }
+    setUrgency(response.data.urgency[0] + response.data.urgency.slice(1).toLowerCase());
+    setUrgencySource('ai_detected');
+    setUrgencyReason(response.data.reason);
   }
   if (submitted)
     return (
@@ -538,6 +622,7 @@ function Submit({ setView }: { setView: (v: View) => void }) {
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
+                onBlur={detectProblemUrgency}
                 className="min-h-32 rounded-lg border border-slate-300 px-4 py-3 font-normal outline-none ring-emerald-700 focus:ring-2"
                 placeholder="Describe what is happening, where, and why it matters."
               />
@@ -580,17 +665,62 @@ function Submit({ setView }: { setView: (v: View) => void }) {
               <span className="flex flex-col gap-2 sm:flex-row">
                 <input
                   name="villageOrCity"
-                  required
+                  value={locationText}
+                  onChange={(event) => setLocationText(event.target.value)}
                   className="min-w-0 flex-1 rounded-lg border border-slate-300 px-4 py-3 font-normal outline-none ring-emerald-700 focus:ring-2"
                   placeholder="Village, ward, landmark or block"
                 />
                 <button
                   type="button"
                   className="shrink-0 rounded-lg border border-slate-300 px-3 py-3 text-xs font-bold text-slate-600 sm:py-0"
+                  disabled={capturingLocation}
+                  onClick={() => {
+                    if (!navigator.geolocation) {
+                      setLocationMessage('Location could not be captured. You can continue without location.');
+                      return;
+                    }
+                    setCapturingLocation(true);
+                    setLocationMessage('');
+                    navigator.geolocation.getCurrentPosition(
+                      async (position) => {
+                        setLocationCoordinates({
+                          latitude: position.coords.latitude,
+                          longitude: position.coords.longitude,
+                        });
+                        const response = await reverseGeocode(position.coords.latitude, position.coords.longitude);
+                        if (response.success && response.data) {
+                          const address = [
+                            response.data.village,
+                            response.data.ward,
+                            response.data.town || response.data.city,
+                            response.data.district,
+                            response.data.state,
+                            response.data.country,
+                          ].filter(Boolean).join(', ') || response.data.displayName;
+                          if (address) setLocationText(address);
+                          setLocationMessage(address ? 'Location captured successfully.' : 'Unable to detect your location. Please enter your location manually.');
+                        } else {
+                          setLocationMessage('Unable to detect your location. Please enter your location manually.');
+                        }
+                        setCapturingLocation(false);
+                      },
+                      () => {
+                        setLocationCoordinates(null);
+                        setLocationMessage('Location could not be captured. You can continue without location.');
+                        setCapturingLocation(false);
+                      },
+                      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
+                    );
+                  }}
                 >
-                  Use my location
+                  {capturingLocation ? 'Capturing...' : 'Use my location'}
                 </button>
               </span>
+              {locationMessage && (
+                <span className={`text-xs font-normal ${locationCoordinates ? 'text-emerald-700' : 'text-slate-500'}`}>
+                  {locationMessage}
+                </span>
+              )}
             </label>
             <label className="flex flex-col gap-2 text-sm font-semibold text-slate-700">
               Contact number
@@ -608,7 +738,7 @@ function Submit({ setView }: { setView: (v: View) => void }) {
               </span>
             </label>
             <label className="flex flex-col gap-2 text-sm font-semibold text-slate-700">
-              Photo, video or document{" "}
+              Photo, video or document (required){" "}
               <span className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-5 py-7 text-center">
                 <UploadCloud className="size-6 text-slate-400" />
                 <span className="text-sm font-semibold text-slate-600">
@@ -659,6 +789,8 @@ function Submit({ setView }: { setView: (v: View) => void }) {
               <label className="flex flex-col gap-2 text-sm font-semibold text-slate-700">
                 Who is affected?
                 <input
+                  value={affected}
+                  onChange={(event) => setAffected(event.target.value)}
                   className="rounded-lg border border-slate-300 px-4 py-3 font-normal outline-none ring-emerald-700 focus:ring-2"
                   placeholder="People, communities or groups"
                 />
@@ -667,7 +799,11 @@ function Submit({ setView }: { setView: (v: View) => void }) {
                 Urgency
                 <select
                   value={urgency}
-                  onChange={(e) => setUrgency(e.target.value)}
+                  onChange={(e) => {
+                    setUrgency(e.target.value);
+                    setUrgencySource('manually_adjusted');
+                    setUrgencyManuallyAdjusted(true);
+                  }}
                   className="rounded-lg border border-slate-300 bg-white px-4 py-3 font-normal outline-none"
                 >
                   <option>Low</option>
@@ -675,11 +811,22 @@ function Submit({ setView }: { setView: (v: View) => void }) {
                   <option>High</option>
                   <option>Critical</option>
                 </select>
+                {detectingUrgency ? (
+                  <span className="text-xs font-normal text-slate-500">AI is analyzing problem severity...</span>
+                ) : urgencySource === 'ai_detected' ? (
+                  <span className="text-xs font-normal text-emerald-700">AI detected: {urgency.toUpperCase()}</span>
+                ) : urgencySource === 'manually_adjusted' ? (
+                  <span className="text-xs font-normal text-slate-500">Manually adjusted</span>
+                ) : null}
+                {urgencyReason && <span className="text-xs font-normal text-slate-500">Reason: {urgencyReason}</span>}
               </label>
             </div>
             <label className="flex flex-col gap-2 text-sm font-semibold text-slate-700">
               Expected impact
               <textarea
+                value={expectedImpact}
+                onChange={(event) => setExpectedImpact(event.target.value)}
+                onBlur={detectProblemUrgency}
                 className="min-h-24 rounded-lg border border-slate-300 px-4 py-3 font-normal outline-none ring-emerald-700 focus:ring-2"
                 placeholder="What would improve if this challenge were solved?"
               />
@@ -710,10 +857,13 @@ function Submit({ setView }: { setView: (v: View) => void }) {
   );
 }
 
-function Dashboard({ setView }: { setView: (v: View) => void }) {
+function Dashboard({ setView, onRewardsChanged }: { setView: (v: View) => void; onRewardsChanged: () => void }) {
   const currentUser = getCurrentUserFromStorage();
   const [submittedCount, setSubmittedCount] = useState<number | null>(null);
   const [submittedChallenges, setSubmittedChallenges] = useState<Array<{ _id: string; title: string; status: string }>>([]);
+  const [rewards, setRewards] = useState<Awaited<ReturnType<typeof getMyRewards>>['data']>(undefined);
+  const [rewardMessage, setRewardMessage] = useState('');
+  const [redeeming, setRedeeming] = useState(false);
 
   function getCitizenStatus(status: string) {
     const normalized = String(status || '').trim().toLowerCase();
@@ -726,7 +876,8 @@ function Dashboard({ setView }: { setView: (v: View) => void }) {
         setSubmittedCount(0);
         return;
       }
-      const response = await getChallenges();
+      const [response, rewardsResponse] = await Promise.all([getChallenges(), getMyRewards()]);
+      if (rewardsResponse.success) setRewards(rewardsResponse.data);
       if (!response.success) {
         setSubmittedCount(0);
         return;
@@ -745,6 +896,24 @@ function Dashboard({ setView }: { setView: (v: View) => void }) {
     }
     void loadSubmittedChallenges();
   }, [currentUser?._id]);
+
+  async function redeemReward() {
+    if (redeeming) return;
+    setRedeeming(true);
+    setRewardMessage('');
+    const response = await redeemMyReward();
+    if (!response.success) {
+      setRewardMessage(response.message || 'Unable to redeem the demo reward.');
+    } else {
+      const refreshed = await getMyRewards();
+      if (refreshed.success) {
+        setRewards(refreshed.data);
+        onRewardsChanged();
+      }
+      setRewardMessage('Virtual Cash Reward added to your portal balance. No real bank or UPI transfer was made.');
+    }
+    setRedeeming(false);
+  }
 
   return (
     <DashboardShell
@@ -774,6 +943,26 @@ function Dashboard({ setView }: { setView: (v: View) => void }) {
           )) : <p className="text-sm text-slate-500">Your submitted problems will appear here.</p>}
         </div>
       </div>
+      <div className="mt-8 rounded-2xl border border-emerald-100 bg-emerald-50 p-6">
+        <p className="text-sm font-bold uppercase tracking-wider text-emerald-800">Impact Rewards</p>
+        <div className="mt-4 grid gap-4 sm:grid-cols-4">
+          <div><p className="text-xs font-semibold text-emerald-700">Impact Tokens</p><p className="mt-1 text-3xl font-bold text-emerald-950">{rewards?.summary.impactTokens ?? '—'}</p></div>
+          <div><p className="text-xs font-semibold text-emerald-700">Verified Problems</p><p className="mt-1 text-3xl font-bold text-emerald-950">{rewards?.summary.totalVerifiedProblems ?? '—'}</p></div>
+          <div><p className="text-xs font-semibold text-emerald-700">Redeemable</p><p className="mt-1 text-3xl font-bold text-emerald-950">₹{rewards?.summary.rewardAmount ?? 0}</p></div>
+          <div><p className="text-xs font-semibold text-emerald-700">Virtual Cash Balance</p><p className="mt-1 text-3xl font-bold text-emerald-950">₹{rewards?.summary.virtualCashBalance ?? 0}</p></div>
+        </div>
+        {rewards && <div className="mt-4"><p className="text-sm text-emerald-900">Progress: {rewards.summary.nextRewardTokens} / 50 tokens</p><div className="mt-2 h-2 overflow-hidden rounded-full bg-emerald-100"><div className="h-full rounded-full bg-emerald-700" style={{ width: `${(rewards.summary.nextRewardTokens / 50) * 100}%` }} /></div></div>}
+        <div className="mt-4 rounded-xl border border-emerald-200 bg-white/60 p-4 text-sm text-emerald-900">
+          <p className="font-bold">How it works</p>
+          <p className="mt-1">Every valid problem verified by the Government earns you 1 Impact Token. Collect 50 Impact Tokens to redeem ₹500 virtual cash.</p>
+          <p className="mt-2 font-semibold">50 Tokens = ₹500 · 100 Tokens = ₹1,000 · 150 Tokens = ₹1,500</p>
+        </div>
+        <p className="mt-4 text-sm font-bold text-emerald-800">Virtual Cash Reward</p>
+        <p className="mt-1 text-xs font-semibold text-emerald-800">Rewards are currently virtual/demo cash inside the portal. No real bank or UPI transfer is made.</p>
+        {rewards?.summary.rewardAmount ? <button type="button" onClick={redeemReward} disabled={redeeming} className="mt-4 rounded-lg bg-emerald-800 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-60">{redeeming ? 'Redeeming...' : `Redeem ₹${rewards.summary.rewardAmount}`}</button> : null}
+        {rewardMessage && <p className="mt-3 text-sm text-emerald-900">{rewardMessage}</p>}
+        {rewards?.history.length ? <div className="mt-5 border-t border-emerald-100 pt-4"><p className="text-sm font-bold text-emerald-900">Reward History</p><div className="mt-2 space-y-2">{rewards.history.map((item) => <p key={`${item.redeemedAt}-${item.rewardAmount}`} className="text-sm text-emerald-800">₹{item.rewardAmount} · {item.tokensRedeemed} Impact Tokens · Virtual Cash Reward · Redeemed on {new Date(item.redeemedAt).toLocaleDateString('en-GB')}</p>)}</div></div> : null}
+      </div>
       <div className="mt-8 rounded-2xl border border-slate-200 bg-white p-6">
         <p className="text-sm font-bold uppercase tracking-wider text-orange-700">
           Have a local concern?
@@ -794,6 +983,7 @@ export default function PortalShell() {
   const [authenticated, setAuthenticated] = useState(false);
   const [open, setOpen] = useState(true);
   const [governmentAction, setGovernmentAction] = useState('');
+  const [rewardRefreshToken, setRewardRefreshToken] = useState(0);
   useEffect(() => {
     if (window.matchMedia("(max-width: 1023px)").matches) {
       setOpen(false);
@@ -884,7 +1074,14 @@ export default function PortalShell() {
         />
       )}
       <div className="flex min-w-0 flex-1 flex-col">
-        <Topbar title={title} open={open} setOpen={setOpen} onLogout={handleLogout} />
+        <Topbar
+          title={title}
+          open={open}
+          setOpen={setOpen}
+          isCitizen={role === "Citizen"}
+          rewardRefreshToken={rewardRefreshToken}
+          onLogout={handleLogout}
+        />
         {view === "submit" ? (
           <Submit setView={guardedSetView} />
         ) : view === "challenges" ? (
@@ -896,7 +1093,7 @@ export default function PortalShell() {
         ) : view === "industry" ? (
           <IndustryDashboard />
         ) : (
-          <Dashboard setView={guardedSetView} />
+          <Dashboard setView={guardedSetView} onRewardsChanged={() => setRewardRefreshToken((value) => value + 1)} />
         )}
         {role === "Citizen" && <SahayakChat onNavigate={guardedSetView} />}
       </div>

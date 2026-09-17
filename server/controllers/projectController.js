@@ -2,6 +2,10 @@ import Project from '../models/Project.js';
 import Challenge from '../models/Challenge.js';
 import User from '../models/User.js';
 
+function governmentDistrict(user) {
+  return String(user?.governmentDistrict || user?.district || '').trim();
+}
+
 // @desc    Create a new project proposal
 // @route   POST /api/projects
 // @access  Private - University only
@@ -200,6 +204,14 @@ export const getAllProjects = async (req, res, next) => {
 
     // Build filter object
     const filter = {};
+    let governmentChallengeIds = null;
+    if (req.user.role === 'government') {
+      const government = await User.findById(req.user.id).select('role district governmentDistrict');
+      const district = governmentDistrict(government);
+      if (!district) return res.status(403).json({ success: false, message: 'Government account requires district assignment' });
+      governmentChallengeIds = await Challenge.find({ district }).distinct('_id');
+      filter.challenge = { $in: governmentChallengeIds };
+    }
 
     if (status) {
       filter.status = status;
@@ -211,6 +223,9 @@ export const getAllProjects = async (req, res, next) => {
       filter.university = university;
     }
     if (challenge) {
+      if (req.user.role === 'government' && !governmentChallengeIds.some((value) => value.toString() === challenge)) {
+        return res.status(403).json({ success: false, message: 'You do not have access to projects outside your district' });
+      }
       filter.challenge = challenge;
     }
     if (req.user.role === 'university') {
@@ -281,6 +296,14 @@ export const getProjectById = async (req, res, next) => {
       });
     }
 
+    if (req.user.role === 'government') {
+      const government = await User.findById(req.user.id).select('role district governmentDistrict');
+      const district = governmentDistrict(government);
+      if (!district || project.challenge?.district !== district) {
+        return res.status(403).json({ success: false, message: 'You do not have access to projects outside your district' });
+      }
+    }
+
     if (req.user.role !== 'government' && req.user.role !== 'university') {
       return res.status(403).json({
         success: false,
@@ -347,6 +370,15 @@ export const updateProjectStatus = async (req, res, next) => {
         success: false,
         message: 'Project not found'
       });
+    }
+
+    if (user.role === 'government') {
+      const government = await User.findById(userId).select('role district governmentDistrict');
+      const district = governmentDistrict(government);
+      const challenge = await Challenge.findById(project.challenge).select('district');
+      if (!district || challenge?.district !== district) {
+        return res.status(403).json({ success: false, message: 'You cannot manage projects outside your district' });
+      }
     }
 
     // Authorization check

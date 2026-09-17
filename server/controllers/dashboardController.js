@@ -66,6 +66,13 @@ export const getDashboardSummary = async (req, res, next) => {
 
 export const getGovernmentAnalytics = async (req, res, next) => {
   try {
+    const government = await User.findById(req.user.id).select('role district governmentDistrict');
+    const governmentDistrict = String(government?.governmentDistrict || government?.district || '').trim();
+    if (!governmentDistrict) {
+      return res.status(403).json({ success: false, message: 'Government account requires district assignment' });
+    }
+    const districtChallengeIds = await Challenge.find({ district: governmentDistrict }).distinct('_id');
+    const districtChallengeFilter = { challenge: { $in: districtChallengeIds } };
     const [
       challengeTotal,
       challengeStatuses,
@@ -78,16 +85,16 @@ export const getGovernmentAnalytics = async (req, res, next) => {
       studentCount,
       facultyCount,
     ] = await Promise.all([
-      Challenge.countDocuments(),
-      Challenge.aggregate([{ $group: { _id: '$status', count: { $sum: 1 } } }]),
-      Sponsorship.aggregate([{ $group: { _id: '$status', count: { $sum: 1 }, amount: { $sum: '$amount' } } }]),
-      Project.countDocuments(),
-      Project.aggregate([{ $group: { _id: '$status', count: { $sum: 1 } } }]),
+      Challenge.countDocuments({ district: governmentDistrict }),
+      Challenge.aggregate([{ $match: { district: governmentDistrict } }, { $group: { _id: '$status', count: { $sum: 1 } } }]),
+      Sponsorship.aggregate([{ $match: districtChallengeFilter }, { $group: { _id: '$status', count: { $sum: 1 }, amount: { $sum: '$amount' } } }]),
+      Project.countDocuments(districtChallengeFilter),
+      Project.aggregate([{ $match: districtChallengeFilter }, { $group: { _id: '$status', count: { $sum: 1 } } }]),
       User.countDocuments({ role: 'university' }),
-      Challenge.distinct('assignedUniversity', { assignedUniversity: { $ne: null } }),
-      Project.distinct('university', { status: { $nin: ['completed', 'rejected'] } }),
-      Project.distinct('teamMembers', { teamMembers: { $exists: true, $ne: [] } }),
-      Project.distinct('facultyMentor', { facultyMentor: { $ne: null } }),
+      Challenge.distinct('assignedUniversity', { district: governmentDistrict, assignedUniversity: { $ne: null } }),
+      Project.distinct('university', { ...districtChallengeFilter, status: { $nin: ['completed', 'rejected'] } }),
+      Project.distinct('teamMembers', { ...districtChallengeFilter, teamMembers: { $exists: true, $ne: [] } }),
+      Project.distinct('facultyMentor', { ...districtChallengeFilter, facultyMentor: { $ne: null } }),
     ]);
 
     const countBy = (rows, key) => rows.find((row) => row._id === key)?.count || 0;

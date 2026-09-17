@@ -61,6 +61,8 @@ export async function login(email: string, password: string) {
       name: string;
       email: string;
       role: string;
+      district?: string;
+      governmentDistrict?: string;
       institution?: string;
       universityDepartment?: string;
       accountType?: string;
@@ -79,6 +81,8 @@ export async function register(userData: Record<string, any>) {
       name: string;
       email: string;
       role: string;
+      district?: string;
+      governmentDistrict?: string;
     };
   }>('/api/auth/register', {
     method: 'POST',
@@ -119,6 +123,65 @@ export async function chatWithSahayak(problem: string, language: 'en' | 'hi' = '
   });
 }
 
+export async function detectUrgency(details: {
+  title: string;
+  description: string;
+  category: string;
+  affected: string;
+  expectedImpact: string;
+  location: string;
+}) {
+  return apiCall<{
+    urgency: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+    reason: string;
+    confidence: number;
+  }>('/api/ai/detect-urgency', {
+    method: 'POST',
+    body: JSON.stringify(details),
+  });
+}
+
+export async function reverseGeocode(latitude: number, longitude: number) {
+  return apiCall<{
+    displayName: string;
+    village: string;
+    ward: string;
+    town: string;
+    city: string;
+    district: string;
+    state: string;
+    country: string;
+  }>(`/api/location/reverse-geocode?lat=${encodeURIComponent(latitude)}&lon=${encodeURIComponent(longitude)}`, {
+    method: 'GET',
+  });
+}
+
+export async function getMyRewards() {
+  return apiCall<{
+    summary: {
+      impactTokens: number;
+      lifetimeImpactTokens: number;
+      totalVerifiedProblems: number;
+      totalRewardsRedeemed: number;
+      totalRewardAmountRedeemed: number;
+      virtualCashBalance: number;
+      redeemableBlocks: number;
+      rewardAmount: number;
+      nextRewardTokens: number;
+    };
+    history: Array<{
+      tokensRedeemed: number;
+      rewardAmount: number;
+      status: string;
+      redeemedAt: string;
+    }>;
+  }>('/api/rewards/me', { method: 'GET' });
+}
+
+export async function redeemMyReward() {
+  return apiCall('/api/rewards/redeem', { method: 'POST', body: JSON.stringify({}) });
+}
+
 export async function getChallenges() {
   return apiCall<Array<{
     _id: string;
@@ -146,6 +209,11 @@ export async function getChallenges() {
     submittedBy?: { _id?: string; name?: string; email?: string; role?: string };
     assignedUniversity?: { _id?: string; name?: string; email?: string; institution?: string; universityDepartment?: string };
     citizenContactNumber?: string;
+    affected?: string;
+    expectedImpact?: string;
+    urgency?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+    urgencySource?: 'ai_detected' | 'manually_adjusted' | 'fallback';
+    urgencyReason?: string;
     attachments?: { _id: string; originalName: string; mimeType: string; size: number; uploadedAt?: string }[];
   }>>('/api/challenges', {
     method: 'GET',

@@ -94,7 +94,9 @@ export default function GovernmentDashboard({ requestedAction = '' }: { requeste
   const [showAssignmentOverview, setShowAssignmentOverview] = useState(false)
   const [assignmentOverviewLoading, setAssignmentOverviewLoading] = useState(false)
   const [assignmentOverviewError, setAssignmentOverviewError] = useState('')
-  const canMutate = getCurrentUserFromStorage()?.role === 'government'
+  const currentGovernment = getCurrentUserFromStorage()
+  const governmentDistrict = currentGovernment?.governmentDistrict || currentGovernment?.district || ''
+  const canMutate = currentGovernment?.role === 'government'
   const action = (label: string) => {
     if (label === 'Review Challenges') {
       document.getElementById('government-review-queue')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -236,10 +238,10 @@ export default function GovernmentDashboard({ requestedAction = '' }: { requeste
     {toast && <div className="fixed bottom-5 right-5 z-50 rounded-xl bg-emerald-900 px-4 py-3 text-sm font-semibold text-white shadow-lg">{toast}</div>}
     <div className="mx-auto max-w-[1450px]">
       <DashboardHero
-        eyebrow="Government dashboard"
-        title="State innovation overview"
+        eyebrow="District Government dashboard"
+        title={`${governmentDistrict || 'Assigned district'} administration`}
         greeting="Good morning, Administrator"
-        subtitle="Here is what is happening across Jharkhand's innovation ecosystem."
+        subtitle={`Here is what is happening in ${governmentDistrict || 'your assigned district'}.`}
         actions={<button onClick={() => action('Export report')} className="rounded-lg border border-white/30 bg-white/10 px-4 py-2.5 text-sm font-bold text-white hover:bg-white/20"><ArrowUpRight className="mr-2 inline size-4" />Export report</button>}
       />
       <div className="mt-6">

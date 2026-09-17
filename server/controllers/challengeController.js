@@ -1,5 +1,6 @@
 import Challenge from '../models/Challenge.js';
 import User from '../models/User.js';
+import mongoose from 'mongoose';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { isAllowedChallengeType, challengeUploadDirectory } from '../middleware/challengeUpload.js';
@@ -22,6 +23,81 @@ function serializeCitizenChallenge(challenge) {
   };
 }
 
+function governmentDistrict(user) {
+  return String(user?.governmentDistrict || user?.district || '').trim();
+}
+
+function isGovernmentChallengeAccessAllowed(user, challenge) {
+  return user?.role === 'government' && governmentDistrict(user) && challenge?.district === governmentDistrict(user);
+}
+
+async function verifyChallengeAndReward(challengeId, government) {
+  const session = await mongoose.startSession();
+  try {
+    let verifiedChallenge;
+    try {
+      await session.withTransaction(async () => {
+        const challenge = await Challenge.findOne({
+          _id: challengeId,
+          status: 'under_review',
+          district: governmentDistrict(government),
+          rewardProcessed: false
+        }).session(session);
+        if (!challenge) {
+          const error = new Error('Challenge is no longer awaiting verification');
+          error.statusCode = 409;
+          throw error;
+        }
+        const citizen = await User.findOne({ _id: challenge.submittedBy, role: 'citizen' }).session(session);
+        if (!citizen) {
+          const error = new Error('Only Citizen challenges can receive Impact Tokens');
+          error.statusCode = 400;
+          throw error;
+        }
+        challenge.status = 'approved';
+        challenge.rewardProcessed = true;
+        await challenge.save({ session });
+        await User.updateOne(
+          { _id: citizen._id, role: 'citizen' },
+          { $inc: { impactTokens: 1, lifetimeImpactTokens: 1, totalVerifiedProblems: 1 } },
+          { session }
+        );
+        verifiedChallenge = challenge;
+      });
+      return verifiedChallenge;
+    } catch (error) {
+      if (error.statusCode || !/transaction|replica set|mongos/i.test(error.message || '')) throw error;
+    }
+
+    const challenge = await Challenge.findOneAndUpdate(
+      { _id: challengeId, status: 'under_review', district: governmentDistrict(government), rewardProcessed: false },
+      { $set: { status: 'approved', rewardProcessed: true } },
+      { new: true }
+    );
+    if (!challenge) {
+      const existing = await Challenge.findById(challengeId).select('status');
+      if (existing?.status === 'approved') return existing;
+      const error = new Error('Challenge is no longer awaiting verification');
+      error.statusCode = 409;
+      throw error;
+    }
+    const citizen = await User.findOneAndUpdate(
+      { _id: challenge.submittedBy, role: 'citizen' },
+      { $inc: { impactTokens: 1, lifetimeImpactTokens: 1, totalVerifiedProblems: 1 } },
+      { new: true }
+    );
+    if (!citizen) {
+      await Challenge.updateOne({ _id: challenge._id, status: 'approved', rewardProcessed: true }, { $set: { status: 'under_review', rewardProcessed: false } });
+      const error = new Error('Only Citizen challenges can receive Impact Tokens');
+      error.statusCode = 400;
+      throw error;
+    }
+    return challenge;
+  } finally {
+    await session.endSession();
+  }
+}
+
 async function removeUploadedFiles(files = []) {
   await Promise.all(files.map((file) => fs.unlink(file.path).catch(() => undefined)));
 }
@@ -42,13 +118,28 @@ function hasValidSignature(file) {
 export const createChallenge = async (req, res, next) => {
   const files = req.files || [];
   try {
-    const { title, description, category, district, villageOrCity, priority, location, media, citizenContactNumber } = req.body;
+    const {
+      title,
+      description,
+      category,
+      district,
+      villageOrCity,
+      priority,
+      urgency,
+      urgencySource,
+      urgencyReason,
+      affected,
+      expectedImpact,
+      location,
+      media,
+      citizenContactNumber
+    } = req.body;
 
     // Validation
-    if (!title || !description || !category || !district || !villageOrCity) {
+    if (!title || !description || !category || !district) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide all required fields: title, description, category, district, villageOrCity'
+        message: 'Please provide all required fields: title, description, category, district'
       });
     }
 
@@ -57,6 +148,22 @@ export const createChallenge = async (req, res, next) => {
       return res.status(400).json({
         success: false,
         message: `Priority must be one of: ${validPriorities.join(', ')}`
+      });
+    }
+    const validUrgencies = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
+    const normalizedUrgency = urgency === undefined ? 'MEDIUM' : String(urgency).trim().toUpperCase();
+    if (!validUrgencies.includes(normalizedUrgency)) {
+      return res.status(400).json({
+        success: false,
+        message: `Urgency must be one of: ${validUrgencies.join(', ')}`
+      });
+    }
+    const validUrgencySources = ['ai_detected', 'manually_adjusted', 'fallback'];
+    const normalizedUrgencySource = urgencySource === undefined ? 'fallback' : String(urgencySource).trim();
+    if (!validUrgencySources.includes(normalizedUrgencySource)) {
+      return res.status(400).json({
+        success: false,
+        message: `Urgency source must be one of: ${validUrgencySources.join(', ')}`
       });
     }
     if (citizenContactNumber !== undefined && !/^[6-9]\d{9}$/.test(String(citizenContactNumber))) {
@@ -85,6 +192,26 @@ export const createChallenge = async (req, res, next) => {
       });
     }
 
+    if (files.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please upload at least one photo, video, or document as supporting evidence.'
+      });
+    }
+
+    let parsedLocation = location;
+    if (typeof location === 'string') {
+      try {
+        parsedLocation = JSON.parse(location);
+      } catch {
+        await removeUploadedFiles(files);
+        return res.status(400).json({
+          success: false,
+          message: 'Location must contain valid coordinates'
+        });
+      }
+    }
+
     // Create challenge object
     const challengeObj = {
       title,
@@ -93,6 +220,11 @@ export const createChallenge = async (req, res, next) => {
       district,
       villageOrCity,
       ...(priority ? { priority } : {}),
+      urgency: normalizedUrgency,
+      urgencySource: normalizedUrgencySource,
+      urgencyReason: typeof urgencyReason === 'string' ? urgencyReason.trim().slice(0, 500) : '',
+      affected: typeof affected === 'string' ? affected.trim().slice(0, 2000) : '',
+      expectedImpact: typeof expectedImpact === 'string' ? expectedImpact.trim().slice(0, 2000) : '',
       status: 'under_review',
       submittedBy: userId,
       ...(citizenContactNumber ? { citizenContactNumber: String(citizenContactNumber) } : {}),
@@ -119,10 +251,14 @@ export const createChallenge = async (req, res, next) => {
     challengeObj.attachments = attachmentFiles;
 
     // Add location if provided
-    if (location && location.latitude && location.longitude) {
+    if (
+      parsedLocation
+      && Number.isFinite(Number(parsedLocation.latitude))
+      && Number.isFinite(Number(parsedLocation.longitude))
+    ) {
       challengeObj.location = {
-        latitude: location.latitude,
-        longitude: location.longitude
+        latitude: Number(parsedLocation.latitude),
+        longitude: Number(parsedLocation.longitude)
       };
     }
 
@@ -157,8 +293,12 @@ export const createChallenge = async (req, res, next) => {
 
 export const downloadChallengeAttachment = async (req, res, next) => {
   try {
+    const user = await User.findById(req.user.id).select('role district governmentDistrict');
     const challenge = await Challenge.findById(req.params.id).select('+attachments.storedName');
     if (!challenge) return res.status(404).json({ success: false, message: 'Challenge not found' });
+    if (user?.role === 'government' && !isGovernmentChallengeAccessAllowed(user, challenge)) {
+      return res.status(403).json({ success: false, message: 'You do not have access to challenges outside your district' });
+    }
 
     const canAccess = req.user.role === 'government'
       || (req.user.role === 'citizen' && challenge.submittedBy.toString() === req.user.id)
@@ -278,6 +418,11 @@ export const getAllChallenges = async (req, res, next) => {
       filter.assignedUniversity = req.user.id;
     } else if (req.user.role === 'citizen') {
       filter.submittedBy = req.user.id;
+    } else if (req.user.role === 'government') {
+      const user = await User.findById(req.user.id).select('role district governmentDistrict');
+      const district = governmentDistrict(user);
+      if (!district) return res.status(403).json({ success: false, message: 'Government account requires district assignment' });
+      filter.district = district;
     }
 
     // Get challenges sorted by newest first
@@ -373,6 +518,12 @@ export const getChallengeById = async (req, res, next) => {
         message: 'You do not have access to this challenge'
       });
     }
+    if (req.user.role === 'government') {
+      const user = await User.findById(req.user.id).select('role district governmentDistrict');
+      if (!isGovernmentChallengeAccessAllowed(user, challenge)) {
+        return res.status(403).json({ success: false, message: 'You do not have access to challenges outside your district' });
+      }
+    }
 
     res.status(200).json({
       success: true,
@@ -433,12 +584,15 @@ export const updateChallengeStatus = async (req, res, next) => {
       });
     }
 
-    const existingChallenge = await Challenge.findById(id).select('status assignedUniversity assignmentStatus acceptedByUniversity');
+    const existingChallenge = await Challenge.findById(id).select('status district assignedUniversity assignmentStatus acceptedByUniversity');
     if (!existingChallenge) {
       return res.status(404).json({
         success: false,
         message: 'Challenge not found'
       });
+    }
+    if (!isGovernmentChallengeAccessAllowed(user, existingChallenge)) {
+      return res.status(403).json({ success: false, message: 'You cannot manage challenges outside your district' });
     }
     const allowedTransitions = {
       submitted: ['under_review'],
@@ -466,6 +620,19 @@ export const updateChallengeStatus = async (req, res, next) => {
       return res.status(400).json({
         success: false,
         message: 'University acceptance is required before funding approval'
+      });
+    }
+
+    if (status === 'approved' && existingChallenge.status === 'under_review') {
+      const verifiedChallenge = await verifyChallengeAndReward(id, user);
+      await verifiedChallenge.populate([
+        { path: 'submittedBy', select: 'name email role district villageOrCity' },
+        { path: 'assignedUniversity', select: 'name email institution universityDepartment' }
+      ]);
+      return res.status(200).json({
+        success: true,
+        message: 'Challenge verified and one Impact Token awarded',
+        data: verifiedChallenge
       });
     }
 
@@ -551,12 +718,15 @@ export const updateChallengePriority = async (req, res, next) => {
       });
     }
 
-    const existingChallenge = await Challenge.findById(id).select('status');
+    const existingChallenge = await Challenge.findById(id).select('status district');
     if (!existingChallenge) {
       return res.status(404).json({
         success: false,
         message: 'Challenge not found'
       });
+    }
+    if (!isGovernmentChallengeAccessAllowed(user, existingChallenge)) {
+      return res.status(403).json({ success: false, message: 'You cannot manage challenges outside your district' });
     }
 
     // Find and update challenge
@@ -650,12 +820,15 @@ export const assignChallenge = async (req, res, next) => {
       });
     }
 
-    const existingChallenge = await Challenge.findById(id).select('status');
+    const existingChallenge = await Challenge.findById(id).select('status district');
     if (!existingChallenge) {
       return res.status(404).json({
         success: false,
         message: 'Challenge not found'
       });
+    }
+    if (!isGovernmentChallengeAccessAllowed(user, existingChallenge)) {
+      return res.status(403).json({ success: false, message: 'You cannot manage challenges outside your district' });
     }
     if (existingChallenge.status !== 'approved') {
       return res.status(400).json({
@@ -728,6 +901,9 @@ export const cancelChallenge = async (req, res, next) => {
 
     const challenge = await Challenge.findById(req.params.id);
     if (!challenge) return res.status(404).json({ success: false, message: 'Challenge not found' });
+    if (!isGovernmentChallengeAccessAllowed(user, challenge)) {
+      return res.status(403).json({ success: false, message: 'You cannot manage challenges outside your district' });
+    }
     if (!challenge.assignedUniversity || !['pending', 'awaiting_acceptance', 'accepted'].includes(challenge.assignmentStatus)) {
       return res.status(400).json({ success: false, message: 'Only assigned challenges can be cancelled' });
     }
@@ -784,6 +960,10 @@ export const deleteChallenge = async (req, res, next) => {
     // Check authorization
     const isChallengeOwner = challenge.submittedBy.toString() === userId;
     const isGovernment = user.role === 'government';
+
+    if (isGovernment && !isGovernmentChallengeAccessAllowed(user, challenge)) {
+      return res.status(403).json({ success: false, message: 'You cannot manage challenges outside your district' });
+    }
 
     if (!isChallengeOwner && !isGovernment) {
       return res.status(403).json({

@@ -41,7 +41,8 @@ const challengeSchema = new mongoose.Schema(
     },
     villageOrCity: {
       type: String,
-      required: [true, 'Village or City is required']
+      trim: true,
+      default: ''
     },
     location: {
       latitude: {
@@ -96,6 +97,35 @@ const challengeSchema = new mongoose.Schema(
         message: 'Priority must be one of: low, medium, high, critical'
       },
       default: 'medium'
+    },
+    urgency: {
+      type: String,
+      enum: ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'],
+      default: 'MEDIUM'
+    },
+    urgencySource: {
+      type: String,
+      enum: ['ai_detected', 'manually_adjusted', 'fallback'],
+      default: 'fallback'
+    },
+    urgencyReason: {
+      type: String,
+      trim: true,
+      default: ''
+    },
+    rewardProcessed: {
+      type: Boolean,
+      default: false
+    },
+    affected: {
+      type: String,
+      trim: true,
+      default: ''
+    },
+    expectedImpact: {
+      type: String,
+      trim: true,
+      default: ''
     },
 
     // Media attachments

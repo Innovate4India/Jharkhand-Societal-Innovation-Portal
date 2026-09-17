@@ -40,6 +40,22 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: function() { return this.role === 'citizen' || this.role === 'government'; }
     },
+    governmentDistrict: {
+      type: String,
+      trim: true,
+      required: function() { return this.role === 'government'; }
+    },
+    impactTokens: { type: Number, min: 0, default: 0 },
+    lifetimeImpactTokens: { type: Number, min: 0, default: 0 },
+    totalVerifiedProblems: { type: Number, min: 0, default: 0 },
+    totalRewardsRedeemed: { type: Number, min: 0, default: 0 },
+    totalRewardAmountRedeemed: { type: Number, min: 0, default: 0 },
+    virtualCashBalance: {
+      type: Number,
+      min: 0,
+      default: 0,
+      validate: { validator: Number.isInteger, message: 'Virtual cash balance must be a whole number' }
+    },
     villageOrCity: {
       type: String,
       required: function() { return this.role === 'citizen'; }

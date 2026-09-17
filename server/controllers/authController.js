@@ -41,6 +41,9 @@ export const registerUser = async (req, res, next) => {
         message: `Role must be one of: ${validRoles.join(', ')}`
       });
     }
+    if (role === 'government' && !String(roleSpecificData.governmentDistrict || roleSpecificData.district || '').trim()) {
+      return res.status(400).json({ success: false, message: 'Government district is required' });
+    }
 
     // Check if user already exists
     let user = await User.findOne({ email: email.toLowerCase() });
@@ -59,6 +62,10 @@ export const registerUser = async (req, res, next) => {
       role,
       ...roleSpecificData
     };
+    if (role === 'government') {
+      userObj.governmentDistrict = String(roleSpecificData.governmentDistrict || roleSpecificData.district).trim();
+      userObj.district = userObj.governmentDistrict;
+    }
 
     // Create user
     user = await User.create(userObj);
