@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
@@ -35,8 +36,11 @@ import {
   redeemMyReward,
   saveCurrentUser,
   reverseGeocode,
+  updateUniversityProfile,
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { UNIVERSITY_DEPARTMENTS } from "@/lib/university-departments";
+import { UNIVERSITY_CLUBS } from "@/lib/university-clubs";
 import ChallengesPage from "@/components/challenges-page";
 import GovernmentDashboard from "@/components/government-dashboard";
 import UniversityDashboard from "@/components/university-dashboard";
@@ -334,86 +338,56 @@ function Topbar({
 function Home({ setView }: { setView: (v: View) => void }) {
   return (
     <div className="min-h-screen bg-slate-50">
-      <header className="flex items-center justify-between gap-2 border-b border-slate-200 bg-white px-3 py-4 sm:px-10">
+      <header className="flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-3 py-3 sm:px-10 sm:py-4">
         <button
           onClick={() => setView("home")}
-          className="flex items-center gap-3"
+          className="flex min-w-0 items-center gap-2.5 text-left sm:gap-3"
         >
-          <span className="grid size-10 place-items-center rounded-xl bg-emerald-800 text-white">
-            <Sparkles className="size-5" />
-          </span>
-          <span className="text-left">
-            <strong className="block text-sm text-slate-950">Jharkhand</strong>
-            <span className="text-xs font-medium text-emerald-700">
-              Innovation Portal
-            </span>
+          <Image
+            src="/portal-logo.png"
+            alt="Jharkhand Innovation Portal logo"
+            width={44}
+            height={44}
+            className="size-9 shrink-0 object-contain sm:size-11"
+            priority
+          />
+          <span className="min-w-0">
+            <strong className="block truncate text-sm text-slate-950 sm:text-base">
+              Jharkhand Innovation Portal
+            </strong>
           </span>
         </button>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setView("challenges")}
-            className="hidden px-3 py-2 text-sm font-semibold text-slate-600 sm:block"
-          >
-            Explore problems
-          </button>
+        <div className="shrink-0">
           <Link
             href="/login"
-            className="hidden px-3 py-2 text-sm font-semibold text-slate-600 sm:block"
+            className="rounded-lg bg-emerald-800 px-3 py-2.5 text-xs font-semibold text-white transition hover:bg-emerald-900 sm:px-4 sm:text-sm"
           >
-            Login
-          </Link>
-          <Link
-            href="/login"
-            className="rounded-lg bg-emerald-800 px-4 py-2.5 text-sm font-semibold text-white"
-          >
-            Open portal
+            Login / Sign Up
           </Link>
         </div>
       </header>
       <main>
-        <section className="home-hero relative mx-auto max-w-4xl overflow-hidden rounded-3xl bg-[#06245C] px-5 py-16 text-white sm:px-10 lg:py-24">
-          {/* <div
+        <section className="home-hero relative flex min-h-[min(680px,calc(100vh-76px))] w-full items-center overflow-hidden bg-[#06245C] px-5 py-16 text-white sm:px-10 lg:min-h-[calc(100vh-84px)] lg:py-24">
+          <div
             aria-hidden="true"
-            className="pointer-events-none absolute inset-0 bg-cover bg-center opacity-20"
+            className="pointer-events-none absolute inset-0 bg-cover bg-[center_30%] opacity-20 md:bg-[center_25%]"
             style={{ backgroundImage: "url('/images/jharkhand-statue.jpg')" }}
-          /> */}
-<div
-  aria-hidden="true"
-  className="pointer-events-none absolute inset-0 bg-cover bg-[center_30%] opacity-20 md:bg-[center_25%]"
-  style={{ backgroundImage: "url('/images/jharkhand-statue.jpg')" }}
-/>
-
+          />
           <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[#06245C]/10" />
-          <div className="relative z-10">
+          <div className="relative z-10 mx-auto w-full max-w-7xl">
             <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-orange-200/30 bg-[#0B2D6B]/80 px-3 py-1.5 text-xs font-bold text-orange-100">
-              {/* <span className="size-1.5 rounded-full bg-orange-500" />A platform
-              for collective action */}
               <span className="size-1.5 rounded-full bg-orange-500" />
-<span className="typewriter-text">A platform for collective action</span>
+              <span className="typewriter-text">A platform for collective action</span>
             </div>
-            <h1 className="max-w-2xl text-balance text-5xl font-bold tracking-tight text-white sm:text-6xl">
+            <h1 className="max-w-2xl text-balance text-4xl font-bold tracking-tight text-white sm:text-6xl">
               Local problems.
               <br />
               <span className="text-emerald-200">Shared solutions.</span>
             </h1>
-            <p className="mt-6 max-w-xl text-lg leading-8 text-blue-100">
+            <p className="mt-6 max-w-xl text-base leading-7 text-blue-100 sm:text-lg sm:leading-8">
               A trusted space where citizens, government and universities come
               together to create a more resilient Jharkhand.
             </p>
-            <div className="mt-9 flex flex-wrap gap-3">
-              <button
-                onClick={() => setView("submit")}
-                className="rounded-lg bg-emerald-800 px-5 py-3 text-sm font-bold text-white"
-              >
-                Share a problem <span className="ml-2">→</span>
-              </button>
-              <button
-                onClick={() => setView("challenges")}
-                className="rounded-lg border border-white/30 bg-white/10 px-5 py-3 text-sm font-bold text-white"
-              >
-                Explore challenges
-              </button>
-            </div>
           </div>
         </section>
         <OfflineHomepageSahayak />
@@ -436,6 +410,83 @@ function Home({ setView }: { setView: (v: View) => void }) {
         </section>
       </main>
     </div>
+  );
+}
+
+function UniversityStudentProfileSetup({
+  institution,
+  onComplete,
+  onLogout,
+}: {
+  institution?: string;
+  onComplete: (user: Record<string, any>) => void;
+  onLogout: () => void;
+}) {
+  const [department, setDepartment] = useState("");
+  const [academicRole, setAcademicRole] = useState<"student" | "researcher">("student");
+  const [primaryClub, setPrimaryClub] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [confirmation, setConfirmation] = useState("");
+
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!department || !primaryClub || loading) return;
+    setError("");
+    setLoading(true);
+    const response = await updateUniversityProfile(department, academicRole, primaryClub);
+    if (!response.success || !response.data?.user) {
+      setError(response.message || "Unable to save your University profile.");
+      setLoading(false);
+      return;
+    }
+    setConfirmation("University profile saved successfully.");
+    window.setTimeout(() => onComplete(response.data!.user), 700);
+  }
+
+  return (
+    <main className="min-h-screen bg-slate-50 px-4 py-8 sm:px-6 sm:py-12">
+      <div className="mx-auto w-full max-w-xl rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-orange-700">University student profile</p>
+            <h1 className="mt-2 text-2xl font-bold text-slate-950">Complete your University Profile</h1>
+          </div>
+          <button type="button" onClick={onLogout} className="shrink-0 rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600">Log out</button>
+        </div>
+        <p className="mt-3 text-sm leading-6 text-slate-500">{institution ? `${institution} · ` : ""}Choose your academic department and participation role to continue.</p>
+        <form onSubmit={submit} className="mt-7 space-y-5">
+          <label className="block">
+            <span className="mb-1.5 block text-sm font-semibold text-slate-700">Department</span>
+            <select required value={department} onChange={(event) => setDepartment(event.target.value)} className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/15">
+              <option value="">Select department</option>
+              {UNIVERSITY_DEPARTMENTS.map((item) => <option key={item} value={item}>{item}</option>)}
+            </select>
+          </label>
+          <fieldset>
+            <legend className="mb-2 text-sm font-semibold text-slate-700">What is your role?</legend>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {[["student", "Student"], ["researcher", "Research Student"]].map(([value, label]) => (
+                <label key={value} className="flex cursor-pointer items-center gap-3 rounded-lg border border-slate-200 p-3 text-sm font-semibold text-slate-700 has-[:checked]:border-emerald-700 has-[:checked]:bg-emerald-50">
+                  <input type="radio" name="academicRole" value={value} checked={academicRole === value} onChange={() => setAcademicRole(value as "student" | "researcher")} className="accent-emerald-700" />
+                  {label}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          <label className="block">
+            <span className="mb-1.5 block text-sm font-semibold text-slate-700">Choose your University Club</span>
+            <select required value={primaryClub} onChange={(event) => setPrimaryClub(event.target.value)} className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/15">
+              <option value="">Select club</option>
+              {UNIVERSITY_CLUBS.map((club) => <option key={club.name} value={club.name}>{club.name}</option>)}
+            </select>
+          </label>
+          {error && <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+          {confirmation && <p className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{confirmation}</p>}
+          <button type="submit" disabled={!department || loading} className="h-11 w-full rounded-lg bg-emerald-800 px-4 text-sm font-bold text-white disabled:opacity-60">{loading ? "Saving profile..." : "Save and continue"}</button>
+        </form>
+      </div>
+    </main>
   );
 }
 
@@ -981,6 +1032,8 @@ export default function PortalShell() {
   const [view, setView] = useState<View>("home");
   const [role, setRole] = useState<Role>("Citizen");
   const [authenticated, setAuthenticated] = useState(false);
+  const [currentUser, setCurrentUser] = useState<Record<string, any> | null>(null);
+  const [studentProfileRequired, setStudentProfileRequired] = useState(false);
   const [open, setOpen] = useState(true);
   const [governmentAction, setGovernmentAction] = useState('');
   const [rewardRefreshToken, setRewardRefreshToken] = useState(0);
@@ -1003,8 +1056,7 @@ export default function PortalShell() {
   useEffect(() => {
     async function restoreSession() {
       if (!getAuthToken()) return;
-      const storedUser = getCurrentUserFromStorage();
-      const response = storedUser ? { success: true, data: { user: storedUser } } : await getCurrentUser();
+      const response = await getCurrentUser();
       if (!response.success || !response.data?.user) {
         clearAuthToken();
         router.replace("/login");
@@ -1017,6 +1069,12 @@ export default function PortalShell() {
         return;
       }
       const nextRole = userRole === "government" ? "Government" : userRole === "university" ? "University" : userRole === "industry" ? "Industry" : "Citizen";
+      setCurrentUser(response.data.user);
+      setStudentProfileRequired(
+        userRole === "university"
+        && (!response.data.user.accountType
+          || (["student", "researcher"].includes(response.data.user.accountType) && (!response.data.user.universityDepartment || !response.data.user.primaryClub))),
+      );
       setRole(nextRole);
       setAuthenticated(true);
       setView(nextRole === "Government" ? "government" : nextRole === "University" ? "university" : nextRole === "Industry" ? "industry" : "citizen");
@@ -1026,8 +1084,23 @@ export default function PortalShell() {
   function handleLogout() {
     clearAuthToken();
     setAuthenticated(false);
+    setCurrentUser(null);
+    setStudentProfileRequired(false);
     setView("home");
     router.replace("/login");
+  }
+  if (studentProfileRequired && role === "University") {
+    return (
+      <UniversityStudentProfileSetup
+        institution={currentUser?.institution}
+        onComplete={(user) => {
+          saveCurrentUser(user);
+          setCurrentUser(user);
+          setStudentProfileRequired(false);
+        }}
+        onLogout={handleLogout}
+      />
+    );
   }
   if (view === "home") return <Home setView={guardedSetView} />;
   const title =

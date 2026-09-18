@@ -5,6 +5,9 @@ import { parseChallengeUpload } from '../middleware/challengeUpload.js';
 import {
   createChallenge,
   acceptChallenge,
+  assignChallengeDepartment,
+  getDepartmentMentors,
+  assignChallengeMentor,
   getAllChallenges,
   getChallengeById,
   updateChallengeStatus,
@@ -25,6 +28,9 @@ router.post('/', parseChallengeUpload, createChallenge);
 
 // Accept an assigned challenge (university only)
 router.patch('/:id/accept', authorizeRoles('university'), acceptChallenge);
+router.patch('/:id/department', authorizeRoles('university'), assignChallengeDepartment);
+router.get('/:id/department-mentors', authorizeRoles('university'), getDepartmentMentors);
+router.patch('/:id/department-mentor', authorizeRoles('university'), assignChallengeMentor);
 
 // Get all challenges
 router.get('/', getAllChallenges);

@@ -1,12 +1,63 @@
 import User from '../models/User.js';
 import generateToken from '../utils/generateToken.js';
+import { UNIVERSITY_DEPARTMENTS } from '../constants/universityDepartments.js';
+import { UNIVERSITY_CLUBS } from '../constants/universityClubs.js';
+import UniversityCoordinatorCode from '../models/UniversityCoordinatorCode.js';
+import { createCoordinatorCode, hashCoordinatorCode, normalizeInstitution } from '../utils/universityCoordinatorCodes.js';
+
+export const getUniversityInstitutions = async (req, res, next) => {
+  try {
+    const institutions = await User.distinct('institution', {
+      role: 'university',
+      institution: { $exists: true, $ne: '' }
+    });
+    return res.status(200).json({ success: true, data: institutions.sort((a, b) => a.localeCompare(b)) });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const generateUniversityCoordinatorCode = async (req, res, next) => {
+  try {
+    const institutionKey = normalizeInstitution(req.body.institution);
+    if (!institutionKey) return res.status(400).json({ success: false, message: 'Select a University/Institution' });
+
+    const institution = (await User.findOne({
+      role: 'university',
+      institution: { $exists: true, $ne: '' },
+      $expr: { $eq: [{ $toLower: '$institution' }, institutionKey] }
+    }).select('institution'))?.institution;
+    if (!institution) return res.status(404).json({ success: false, message: 'University/Institution is not registered' });
+
+    const existing = await UniversityCoordinatorCode.findOne({ institutionKey }).select('active');
+    if (existing?.active) {
+      return res.status(409).json({ success: false, message: 'This University already has an active coordinator code. Use that code to register or contact an administrator for rotation.' });
+    }
+
+    const code = createCoordinatorCode();
+    const update = {
+      institution,
+      institutionKey,
+      codeHash: hashCoordinatorCode(code),
+      active: true,
+      ...(existing ? { rotatedAt: new Date() } : {})
+    };
+    if (existing) await UniversityCoordinatorCode.updateOne({ _id: existing._id }, update);
+    else await UniversityCoordinatorCode.create(update);
+
+    return res.status(201).json({ success: true, message: 'Authorization code generated. Save it before continuing.', data: { institution, code } });
+  } catch (error) {
+    if (error.code === 11000) return res.status(409).json({ success: false, message: 'An active coordinator code already exists for this University' });
+    next(error);
+  }
+};
 
 // @desc    Register a new user
 // @route   POST /api/auth/register
 // @access  Public
 export const registerUser = async (req, res, next) => {
   try {
-    const { name, email, password, role, ...roleSpecificData } = req.body;
+    const { name, email, password, role, universityCoordinatorCode, ...roleSpecificData } = req.body;
 
     // Validation
     if (!name || !email || !password || !role) {
@@ -41,6 +92,12 @@ export const registerUser = async (req, res, next) => {
         message: `Role must be one of: ${validRoles.join(', ')}`
       });
     }
+    if (role !== 'university' && roleSpecificData.accountType === 'coordinator') {
+      return res.status(400).json({
+        success: false,
+        message: 'University Coordinator account type is only valid for University accounts'
+      });
+    }
     if (role === 'government' && !String(roleSpecificData.governmentDistrict || roleSpecificData.district || '').trim()) {
       return res.status(400).json({ success: false, message: 'Government district is required' });
     }
@@ -62,6 +119,26 @@ export const registerUser = async (req, res, next) => {
       role,
       ...roleSpecificData
     };
+    if (role === 'university') {
+      if (roleSpecificData.accountType === 'coordinator') {
+        const institutionKey = normalizeInstitution(roleSpecificData.institution);
+        const coordinatorCode = await UniversityCoordinatorCode.findOne({
+          institutionKey,
+          active: true,
+          codeHash: hashCoordinatorCode(universityCoordinatorCode)
+        });
+        if (!coordinatorCode) {
+          return res.status(403).json({
+            success: false,
+            message: 'Invalid or inactive coordinator code for the selected University'
+          });
+        }
+        userObj.universityRole = 'innovation_coordinator';
+        userObj.institution = coordinatorCode.institution;
+      } else {
+        userObj.universityRole = 'member';
+      }
+    }
     if (role === 'government') {
       userObj.governmentDistrict = String(roleSpecificData.governmentDistrict || roleSpecificData.district).trim();
       userObj.district = userObj.governmentDistrict;
@@ -109,7 +186,7 @@ export const registerUser = async (req, res, next) => {
 // @access  Public
 export const loginUser = async (req, res, next) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, institution, coordinatorCode } = req.body;
 
     // Validation
     if (!email || !password) {
@@ -144,6 +221,18 @@ export const loginUser = async (req, res, next) => {
         success: false,
         message: 'This account role is no longer supported for application login'
       });
+    }
+    if (user.role === 'university' && user.universityRole === 'innovation_coordinator') {
+      const institutionKey = normalizeInstitution(institution);
+      if (!institutionKey || institutionKey !== normalizeInstitution(user.institution) || !coordinatorCode) {
+        return res.status(401).json({ success: false, message: 'University and active coordinator authorization code are required' });
+      }
+      const coordinatorRecord = await UniversityCoordinatorCode.findOne({
+        institutionKey,
+        active: true,
+        codeHash: hashCoordinatorCode(coordinatorCode)
+      });
+      if (!coordinatorRecord) return res.status(401).json({ success: false, message: 'Invalid coordinator authorization code for this University' });
     }
 
     // Generate token
@@ -183,6 +272,45 @@ export const getCurrentUser = async (req, res, next) => {
       data: {
         user: user.toJSON()
       }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Complete the authenticated student's University profile
+// @route   PATCH /api/auth/university-profile
+// @access  Private - University student/research student only
+export const updateUniversityProfile = async (req, res, next) => {
+  try {
+    const { department, accountType, primaryClub } = req.body;
+    if (!UNIVERSITY_DEPARTMENTS.includes(department)) {
+      return res.status(400).json({ success: false, message: 'Select a valid university department' });
+    }
+    if (!['student', 'researcher'].includes(accountType)) {
+      return res.status(400).json({ success: false, message: 'Select Student or Research Student' });
+    }
+    if (!UNIVERSITY_CLUBS.includes(primaryClub)) {
+      return res.status(400).json({ success: false, message: 'Select a valid University club' });
+    }
+
+    const user = await User.findById(req.user.id);
+    if (!user || user.role !== 'university') {
+      return res.status(403).json({ success: false, message: 'Only University student profiles can be updated here' });
+    }
+    if (user.accountType && !['student', 'researcher'].includes(user.accountType)) {
+      return res.status(403).json({ success: false, message: 'This University account cannot change its academic role here' });
+    }
+
+    user.universityDepartment = department;
+    user.accountType = accountType;
+    user.primaryClub = primaryClub;
+    await user.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'University profile completed successfully',
+      data: { user: user.toJSON() }
     });
   } catch (error) {
     next(error);

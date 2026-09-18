@@ -26,19 +26,25 @@ export const getUniversities = async (req, res, next) => {
 // @access  Private - Government only
 export const getUniversityParticipation = async (req, res, next) => {
   try {
+    const government = await User.findById(req.user.id).select('role district governmentDistrict').lean();
+    const governmentDistrict = String(government?.governmentDistrict || government?.district || '').trim();
+    if (government?.role !== 'government' || !governmentDistrict) {
+      return res.status(403).json({ success: false, message: 'Government account requires district assignment' });
+    }
     const universities = await User.find({ role: 'university' })
       .select('_id name institution')
       .sort({ institution: 1, name: 1 })
       .lean();
     const universityIds = universities.map((university) => university._id);
+    const districtChallengeIds = await Challenge.find({ district: governmentDistrict }).distinct('_id');
 
     const [assignedCounts, projectCounts] = await Promise.all([
       Challenge.aggregate([
-        { $match: { assignedUniversity: { $in: universityIds } } },
+        { $match: { _id: { $in: districtChallengeIds }, assignedUniversity: { $in: universityIds } } },
         { $group: { _id: '$assignedUniversity', assigned: { $sum: 1 } } }
       ]),
       Project.aggregate([
-        { $match: { university: { $in: universityIds } } },
+        { $match: { challenge: { $in: districtChallengeIds }, university: { $in: universityIds } } },
         {
           $group: {
             _id: '$university',

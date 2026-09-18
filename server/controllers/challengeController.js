@@ -4,6 +4,7 @@ import mongoose from 'mongoose';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { isAllowedChallengeType, challengeUploadDirectory } from '../middleware/challengeUpload.js';
+import { UNIVERSITY_DEPARTMENTS } from '../constants/universityDepartments.js';
 
 function toCitizenStatus(status) {
   const normalized = String(status || '').trim().toLowerCase();
@@ -389,6 +390,149 @@ export const acceptChallenge = async (req, res, next) => {
   }
 };
 
+export const assignChallengeDepartment = async (req, res, next) => {
+  try {
+    const { department } = req.body;
+    if (!UNIVERSITY_DEPARTMENTS.includes(department)) {
+      return res.status(400).json({ success: false, message: 'Select a valid university department' });
+    }
+
+    const coordinator = await User.findById(req.user.id).select('role universityRole institution');
+    if (!coordinator || coordinator.role !== 'university' || coordinator.universityRole !== 'innovation_coordinator') {
+      return res.status(403).json({ success: false, message: 'Only an authorized University Innovation Coordinator can assign departments' });
+    }
+
+    const challenge = await Challenge.findById(req.params.id);
+    if (!challenge) return res.status(404).json({ success: false, message: 'Challenge not found' });
+    if (!challenge.assignedUniversity || challenge.assignmentStatus !== 'accepted' || !challenge.acceptedByUniversity) {
+      return res.status(400).json({ success: false, message: 'The university must accept this challenge before department assignment' });
+    }
+    if (challenge.department) {
+      return res.status(409).json({ success: false, message: 'A department has already been assigned to this challenge' });
+    }
+    if (!['accepted', 'funding_approved', 'in_progress'].includes(challenge.status)) {
+      return res.status(400).json({ success: false, message: 'This challenge is not in a valid state for department assignment' });
+    }
+
+    const assignedUniversity = await User.findById(challenge.assignedUniversity).select('role institution');
+    if (
+      !assignedUniversity
+      || assignedUniversity.role !== 'university'
+      || !coordinator.institution
+      || assignedUniversity.institution !== coordinator.institution
+    ) {
+      return res.status(403).json({ success: false, message: 'This challenge is assigned to another university' });
+    }
+
+    challenge.department = department;
+    challenge.departmentAssignedBy = coordinator._id;
+    challenge.departmentAssignedAt = new Date();
+    await challenge.save();
+    await challenge.populate([
+      { path: 'assignedUniversity', select: 'name email institution universityDepartment' },
+      { path: 'departmentAssignedBy', select: 'name email institution universityRole' }
+    ]);
+    return res.status(200).json({ success: true, message: 'Challenge department assigned successfully', data: challenge });
+  } catch (error) {
+    if (error.kind === 'ObjectId') return res.status(404).json({ success: false, message: 'Challenge not found' });
+    next(error);
+  }
+};
+
+const getCoordinatorChallengeContext = async (req, challengeId) => {
+  const coordinator = await User.findById(req.user.id).select('role universityRole institution');
+  if (!coordinator || coordinator.role !== 'university' || coordinator.universityRole !== 'innovation_coordinator') {
+    return { error: { status: 403, message: 'Only an authorized University Innovation Coordinator can manage department mentors' } };
+  }
+
+  const challenge = await Challenge.findById(challengeId);
+  if (!challenge) return { error: { status: 404, message: 'Challenge not found' } };
+  if (!challenge.assignedUniversity || challenge.assignmentStatus !== 'accepted' || !challenge.acceptedByUniversity) {
+    return { error: { status: 400, message: 'The university must accept this challenge before mentor assignment' } };
+  }
+  if (!challenge.department) {
+    return { error: { status: 400, message: 'Assign a department before assigning a mentor' } };
+  }
+  if (!['accepted', 'funding_approved', 'in_progress'].includes(challenge.status)) {
+    return { error: { status: 400, message: 'This challenge is not in a valid state for mentor assignment' } };
+  }
+
+  const assignedUniversity = await User.findById(challenge.assignedUniversity).select('role institution');
+  if (
+    !assignedUniversity
+    || assignedUniversity.role !== 'university'
+    || !coordinator.institution
+    || assignedUniversity.institution !== coordinator.institution
+  ) {
+    return { error: { status: 403, message: 'This challenge is assigned to another university' } };
+  }
+
+  return { coordinator, challenge };
+};
+
+export const getDepartmentMentors = async (req, res, next) => {
+  try {
+    const context = await getCoordinatorChallengeContext(req, req.params.id);
+    if (context.error) return res.status(context.error.status).json({ success: false, message: context.error.message });
+
+    const mentors = await User.find({
+      role: 'university',
+      institution: context.coordinator.institution,
+      universityDepartment: context.challenge.department,
+      accountType: 'faculty'
+    })
+      .select('_id name email institution universityDepartment accountType')
+      .sort({ name: 1 })
+      .lean();
+
+    return res.status(200).json({ success: true, data: mentors });
+  } catch (error) {
+    if (error.kind === 'ObjectId') return res.status(404).json({ success: false, message: 'Challenge not found' });
+    next(error);
+  }
+};
+
+export const assignChallengeMentor = async (req, res, next) => {
+  try {
+    const { departmentMentor } = req.body;
+    if (!departmentMentor) {
+      return res.status(400).json({ success: false, message: 'Select a department mentor' });
+    }
+
+    const context = await getCoordinatorChallengeContext(req, req.params.id);
+    if (context.error) return res.status(context.error.status).json({ success: false, message: context.error.message });
+    if (context.challenge.departmentMentor) {
+      return res.status(409).json({ success: false, message: 'A department mentor has already been assigned to this challenge' });
+    }
+
+    const mentor = await User.findOne({
+      _id: departmentMentor,
+      role: 'university',
+      institution: context.coordinator.institution,
+      universityDepartment: context.challenge.department,
+      accountType: 'faculty'
+    }).select('_id name email institution universityDepartment accountType');
+    if (!mentor) {
+      return res.status(403).json({ success: false, message: 'Selected mentor is not an eligible faculty member for this department' });
+    }
+
+    context.challenge.departmentMentor = mentor._id;
+    context.challenge.departmentMentorAssignedBy = context.coordinator._id;
+    context.challenge.departmentMentorAssignedAt = new Date();
+    await context.challenge.save();
+    await context.challenge.populate([
+      { path: 'assignedUniversity', select: 'name email institution universityDepartment' },
+      { path: 'departmentMentor', select: 'name email institution universityDepartment accountType' },
+      { path: 'departmentMentorAssignedBy', select: 'name email institution universityRole' }
+    ]);
+
+    return res.status(200).json({ success: true, message: 'Department mentor assigned successfully', data: context.challenge });
+  } catch (error) {
+    if (error.kind === 'ObjectId') return res.status(404).json({ success: false, message: 'Challenge or mentor not found' });
+    next(error);
+  }
+};
+
 // @desc    Get all challenges with optional filters
 // @route   GET /api/challenges
 // @access  Private
@@ -415,7 +559,10 @@ export const getAllChallenges = async (req, res, next) => {
       filter.priority = priority;
     }
     if (req.user.role === 'university') {
-      filter.assignedUniversity = req.user.id;
+      filter.$or = [
+        { assignedUniversity: req.user.id },
+        { departmentMentor: req.user.id }
+      ];
     } else if (req.user.role === 'citizen') {
       filter.submittedBy = req.user.id;
     } else if (req.user.role === 'government') {
@@ -443,6 +590,10 @@ export const getAllChallenges = async (req, res, next) => {
         path: 'acceptedByUniversity',
         select: 'name email institution universityDepartment'
       });
+    challengeQuery.populate({
+      path: 'departmentMentor',
+      select: 'name email institution universityDepartment accountType'
+    });
     if (req.user.role === 'government') {
       challengeQuery.populate({
         path: 'industryFundedBy',
@@ -491,6 +642,10 @@ export const getChallengeById = async (req, res, next) => {
         path: 'acceptedByUniversity',
         select: 'name email institution universityDepartment'
       });
+    challengeQuery.populate({
+      path: 'departmentMentor',
+      select: 'name email institution universityDepartment accountType'
+    });
     if (req.user.role === 'government') {
       challengeQuery.populate({
         path: 'industryFundedBy',

@@ -226,6 +226,34 @@ const challengeSchema = new mongoose.Schema(
       type: Date,
       default: null
     },
+    department: {
+      type: String,
+      trim: true,
+      default: null
+    },
+    departmentAssignedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null
+    },
+    departmentAssignedAt: {
+      type: Date,
+      default: null
+    },
+    departmentMentor: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null
+    },
+    departmentMentorAssignedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null
+    },
+    departmentMentorAssignedAt: {
+      type: Date,
+      default: null
+    },
     cancelledBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',

@@ -6,6 +6,34 @@ interface ApiResponse<T> {
   data?: T;
 }
 
+export async function assignChallengeDepartment(challengeId: string, department: string) {
+  return apiCall(`/api/challenges/${encodeURIComponent(challengeId)}/department`, {
+    method: 'PATCH',
+    body: JSON.stringify({ department }),
+  });
+}
+
+export async function getDepartmentMentors(challengeId: string) {
+  return apiCall<Array<{
+    _id: string;
+    name: string;
+    email?: string;
+    institution?: string;
+    universityDepartment?: string;
+    accountType?: string;
+    primaryClub?: string | null;
+  }>>(`/api/challenges/${encodeURIComponent(challengeId)}/department-mentors`, {
+    method: 'GET',
+  });
+}
+
+export async function assignChallengeMentor(challengeId: string, departmentMentor: string) {
+  return apiCall(`/api/challenges/${encodeURIComponent(challengeId)}/department-mentor`, {
+    method: 'PATCH',
+    body: JSON.stringify({ departmentMentor }),
+  });
+}
+
 const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/$/, '');
 
 function resolveApiUrl(endpoint: string) {
@@ -53,7 +81,7 @@ export async function apiCall<T>(
   }
 }
 
-export async function login(email: string, password: string) {
+export async function login(email: string, password: string, coordinator?: { institution: string; code: string }) {
   return apiCall<{
     token: string;
     user: {
@@ -63,13 +91,20 @@ export async function login(email: string, password: string) {
       role: string;
       district?: string;
       governmentDistrict?: string;
+      universityRole?: 'member' | 'innovation_coordinator';
+      clubRole?: 'member' | 'coordinator';
+      clubCoordinatorClub?: string | null;
       institution?: string;
       universityDepartment?: string;
       accountType?: string;
+      primaryClub?: string | null;
+      universityRole?: 'member' | 'innovation_coordinator';
+      clubRole?: 'member' | 'coordinator';
+      clubCoordinatorClub?: string | null;
     };
   }>('/api/auth/login', {
     method: 'POST',
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ email, password, institution: coordinator?.institution, coordinatorCode: coordinator?.code }),
   });
 }
 
@@ -90,6 +125,17 @@ export async function register(userData: Record<string, any>) {
   });
 }
 
+export async function getUniversityInstitutions() {
+  return apiCall<string[]>('/api/auth/universities', { method: 'GET' });
+}
+
+export async function generateUniversityCoordinatorCode(institution: string) {
+  return apiCall<{ institution: string; code: string }>('/api/auth/university-coordinator/generate-code', {
+    method: 'POST',
+    body: JSON.stringify({ institution }),
+  });
+}
+
 export async function getCurrentUser() {
   return apiCall<{
     user: {
@@ -97,10 +143,51 @@ export async function getCurrentUser() {
       name: string;
       email: string;
       role: string;
+      institution?: string;
+      universityDepartment?: string;
+      accountType?: string;
+      primaryClub?: string | null;
+      universityRole?: 'member' | 'innovation_coordinator';
     };
   }>('/api/auth/me', {
     method: 'GET',
   });
+}
+
+export async function updateUniversityProfile(department: string, accountType: 'student' | 'researcher', primaryClub: string) {
+  return apiCall<{ user: {
+    _id: string;
+    name: string;
+    email: string;
+    role: string;
+    institution?: string;
+    universityDepartment?: string;
+    accountType?: string;
+    universityRole?: 'member' | 'innovation_coordinator';
+  } }>('/api/auth/university-profile', {
+    method: 'PATCH',
+    body: JSON.stringify({ department, accountType, primaryClub }),
+  });
+}
+
+export async function getClubActivities(club: string) {
+  return apiCall<Array<{ _id: string; title: string; description: string; club: string; date: string; status: 'upcoming' | 'completed'; participants?: { _id?: string; name?: string }[]; createdBy?: { name?: string } }>>(`/api/clubs/${encodeURIComponent(club)}/activities`, { method: 'GET' });
+}
+
+export async function getClubMembers(club: string) {
+  return apiCall<Array<{ _id: string; name: string; email?: string; universityDepartment?: string; accountType?: string; clubRole?: string }>>(`/api/clubs/${encodeURIComponent(club)}/members`, { method: 'GET' });
+}
+
+export async function createClubActivity(club: string, data: { title: string; description: string; date: string }) {
+  return apiCall(`/api/clubs/${encodeURIComponent(club)}/activities`, { method: 'POST', body: JSON.stringify(data) });
+}
+
+export async function updateClubActivity(club: string, activityId: string, data: { title?: string; description?: string; date?: string; status?: 'upcoming' | 'completed' }) {
+  return apiCall(`/api/clubs/${encodeURIComponent(club)}/activities/${encodeURIComponent(activityId)}`, { method: 'PATCH', body: JSON.stringify(data) });
+}
+
+export async function registerForClubActivity(club: string, activityId: string) {
+  return apiCall(`/api/clubs/${encodeURIComponent(club)}/activities/${encodeURIComponent(activityId)}/register`, { method: 'POST', body: JSON.stringify({}) });
 }
 
 export async function chatWithSahayak(problem: string, language: 'en' | 'hi' = 'en') {
@@ -192,6 +279,11 @@ export async function getChallenges() {
     villageOrCity: string;
     status: string;
     assignmentStatus?: 'unassigned' | 'pending' | 'awaiting_acceptance' | 'accepted';
+    department?: string | null;
+    departmentAssignedAt?: string | null;
+    departmentMentor?: { _id?: string; name?: string; email?: string; institution?: string; universityDepartment?: string; accountType?: string } | null;
+    departmentMentorAssignedBy?: { _id?: string; name?: string; email?: string } | null;
+    departmentMentorAssignedAt?: string | null;
     acceptedByUniversity?: { _id?: string; name?: string; email?: string };
     acceptedAt?: string;
     cancelledBy?: { _id?: string; name?: string };
@@ -208,6 +300,7 @@ export async function getChallenges() {
     createdAt?: string;
     submittedBy?: { _id?: string; name?: string; email?: string; role?: string };
     assignedUniversity?: { _id?: string; name?: string; email?: string; institution?: string; universityDepartment?: string };
+    departmentMentor?: { _id?: string; name?: string; email?: string; institution?: string; universityDepartment?: string; accountType?: string } | null;
     citizenContactNumber?: string;
     affected?: string;
     expectedImpact?: string;

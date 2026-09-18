@@ -76,17 +76,18 @@ export const createProject = async (req, res, next) => {
       });
     }
 
-    // Verify that the authenticated university is assigned to this challenge
-    if (!challengeDoc.assignedUniversity || challengeDoc.assignedUniversity.toString() !== userId) {
+    const isAssignedUniversity = challengeDoc.assignedUniversity?.toString() === userId;
+    const isAssignedDepartmentMentor = challengeDoc.departmentMentor?.toString() === userId;
+    if (!isAssignedUniversity && !isAssignedDepartmentMentor) {
       return res.status(403).json({
         success: false,
-        message: 'You can only create projects for challenges assigned to your university'
+        message: 'Only the assigned University or Department Mentor can create a project for this challenge'
       });
     }
     if (
       challengeDoc.assignmentStatus !== 'accepted'
       || !challengeDoc.acceptedByUniversity
-      || challengeDoc.acceptedByUniversity.toString() !== userId
+      || challengeDoc.acceptedByUniversity.toString() !== challengeDoc.assignedUniversity?.toString()
     ) {
       return res.status(400).json({
         success: false,
@@ -98,6 +99,9 @@ export const createProject = async (req, res, next) => {
         success: false,
         message: 'Cancelled challenges cannot have projects created'
       });
+    }
+    if (isAssignedDepartmentMentor && !challengeDoc.department) {
+      return res.status(400).json({ success: false, message: 'A department must be assigned before mentor project creation' });
     }
     if (
       !['proposal_accepted', 'funded', 'accepted'].includes(challengeDoc.industryFundingStatus)
@@ -135,14 +139,18 @@ export const createProject = async (req, res, next) => {
     }
 
     // Create project object
+    if (isAssignedDepartmentMentor && universityDepartment !== challengeDoc.department) {
+      return res.status(400).json({ success: false, message: 'Project department must match the assigned challenge department' });
+    }
+    const projectUniversity = challengeDoc.assignedUniversity;
     const projectObj = {
       title,
       description,
       challenge,
       createdBy: userId,
-      university: userId,
-      universityDepartment,
-      facultyMentor: facultyMentor || null,
+      university: projectUniversity,
+      universityDepartment: isAssignedDepartmentMentor ? challengeDoc.department : universityDepartment,
+      facultyMentor: isAssignedDepartmentMentor ? userId : (facultyMentor || null),
       projectType,
       solutionSummary,
       expectedImpact,
@@ -152,7 +160,7 @@ export const createProject = async (req, res, next) => {
         startDate,
         expectedCompletionDate: endDate
       },
-      teamMembers: [userId], // Creator is added to team
+      teamMembers: [userId],
       status: 'proposed'
     };
 
@@ -229,7 +237,11 @@ export const getAllProjects = async (req, res, next) => {
       filter.challenge = challenge;
     }
     if (req.user.role === 'university') {
-      filter.university = req.user.id;
+      filter.$or = [
+        { university: req.user.id },
+        { facultyMentor: req.user.id },
+        { teamMembers: req.user.id }
+      ];
     }
 
     // Get projects sorted by newest first
@@ -289,7 +301,13 @@ export const getProjectById = async (req, res, next) => {
       ? project.university
       : project.university?._id?.toString?.() || project.university?.toString?.();
 
-    if (req.user.role === 'university' && projectUniversityId !== req.user.id) {
+    const isProjectMentor = req.user.role === 'university'
+      && (
+        project.facultyMentor?._id?.toString?.() === req.user.id
+        || project.facultyMentor?.toString?.() === req.user.id
+        || project.teamMembers?.some((member) => member?._id?.toString?.() === req.user.id || member?.toString?.() === req.user.id)
+      );
+    if (req.user.role === 'university' && projectUniversityId !== req.user.id && !isProjectMentor) {
       return res.status(403).json({
         success: false,
         message: 'You do not have access to this project'
@@ -504,12 +522,19 @@ export const updateProjectTeam = async (req, res, next) => {
       });
     }
 
-    // Only project-owning university can manage team
-    if (project.university.toString() !== userId) {
+    const challenge = await Challenge.findById(project.challenge).select('departmentMentor department departmentMentor');
+    const isProjectOwner = project.university.toString() === userId;
+    const isAssignedMentor = challenge?.departmentMentor?.toString() === userId
+      && project.facultyMentor?.toString() === userId
+      && project.universityDepartment === challenge.department;
+    if (!isProjectOwner && !isAssignedMentor) {
       return res.status(403).json({
         success: false,
-        message: 'Only the project-owning university can manage team members'
+        message: 'Only the project-owning University or assigned Department Mentor can manage team members'
       });
+    }
+    if (isAssignedMentor && !teamMembers.some((member) => member.toString() === userId)) {
+      return res.status(400).json({ success: false, message: 'The assigned Department Mentor must remain on the project team' });
     }
 
     // Verify all users exist
@@ -517,7 +542,9 @@ export const updateProjectTeam = async (req, res, next) => {
     const users = await User.find({
       _id: { $in: teamMembers },
       role: 'university',
-      institution: owner.institution
+      institution: owner.institution,
+      universityDepartment: project.universityDepartment,
+      accountType: { $in: ['student', 'researcher', 'faculty'] }
     });
     if (users.length !== teamMembers.length) {
       return res.status(400).json({
