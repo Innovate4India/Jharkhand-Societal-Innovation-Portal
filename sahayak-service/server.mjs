@@ -46,6 +46,12 @@ Use the overall context, impact, immediacy, and people affected rather than isol
 Do not invent facts, locations, emergencies, or verification. If the information is insufficient, use MEDIUM with a low confidence.
 CRITICAL is for active life-threatening or severe situations such as fire in a residential area, people trapped, or active flooding affecting homes.`;
 
+const recommendationPrompt = `You compare a new societal problem against verified completed solution records.
+Return ONLY valid JSON with exactly this shape:
+{"recommendations":[{"solutionId":"string","reason":"string","relevantAspects":["string"]}]}
+Return at most 3 genuinely relevant candidates, or an empty array if none is meaningful.
+Use only candidate solutionId values supplied by the user. Never invent IDs, technologies, outcomes, or facts.`;
+
 function sendJson(response, status, body) {
   response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
   response.end(JSON.stringify(body));
@@ -56,11 +62,95 @@ function parseJsonContent(content) {
   return JSON.parse(withoutFence);
 }
 
+async function generateRecommendationsExternal(context) {
+  if (!apiKey || apiKey === 'replace_with_your_provider_api_key') {
+    const error = new Error('Sahayak requires OPENROUTER_API_KEY to generate real AI responses');
+    error.statusCode = 503;
+    throw error;
+  }
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30_000);
+  try {
+    const providerResponse = await fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': process.env.FRONTEND_URL || 'http://localhost:3000',
+        'X-Title': 'Jharkhand Societal Innovation Portal Solution Recommendations'
+      },
+      body: JSON.stringify({
+        model,
+        temperature: 0,
+        max_tokens: 1200,
+        messages: [
+          { role: 'system', content: recommendationPrompt },
+          { role: 'user', content: JSON.stringify(context) }
+        ]
+      }),
+      signal: controller.signal
+    });
+    const providerBody = await providerResponse.json();
+    if (!providerResponse.ok) {
+      const error = new Error(providerBody.error?.message || 'AI provider request failed');
+      error.statusCode = 502;
+      throw error;
+    }
+    const content = providerBody.choices?.[0]?.message?.content;
+    if (typeof content !== 'string' || !content.trim()) throw new Error('AI provider returned no recommendation content');
+    return parseJsonContent(content);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 async function generateGuidance(problem, language) {
   if (!apiKey || apiKey === 'replace_with_your_provider_api_key') {
     const error = new Error('Sahayak requires OPENROUTER_API_KEY to generate real AI responses');
     error.statusCode = 503;
     throw error;
+  }
+
+  async function generateRecommendations(context) {
+    if (!apiKey || apiKey === 'replace_with_your_provider_api_key') {
+      const error = new Error('Sahayak requires OPENROUTER_API_KEY to generate real AI responses');
+      error.statusCode = 503;
+      throw error;
+    }
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30_000);
+    try {
+      const providerResponse = await fetch(`${baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          Authorization: `******`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': process.env.FRONTEND_URL || 'http://localhost:3000',
+          'X-Title': 'Jharkhand Societal Innovation Portal Solution Recommendations'
+        },
+        body: JSON.stringify({
+          model,
+          temperature: 0,
+          max_tokens: 1200,
+          messages: [
+            { role: 'system', content: recommendationPrompt },
+            { role: 'user', content: JSON.stringify(context) }
+          ]
+        }),
+        signal: controller.signal
+      });
+      const providerBody = await providerResponse.json();
+      if (!providerResponse.ok) {
+        const error = new Error(providerBody.error?.message || 'AI provider request failed');
+        error.statusCode = 502;
+        throw error;
+      }
+      const content = providerBody.choices?.[0]?.message?.content;
+      if (typeof content !== 'string' || !content.trim()) throw new Error('AI provider returned no recommendation content');
+      return parseJsonContent(content);
+    } finally {
+      clearTimeout(timeout);
+    }
   }
 
   async function generateUrgency(details) {
@@ -154,6 +244,26 @@ const server = http.createServer(async (request, response) => {
       model,
       providerConfigured: Boolean(apiKey && apiKey !== 'replace_with_your_provider_api_key')
     });
+  }
+  if (request.method === 'POST' && request.url === '/solution-recommendations') {
+    let rawBody = '';
+    for await (const chunk of request) rawBody += chunk;
+    let body;
+    try {
+      body = JSON.parse(rawBody);
+    } catch {
+      return sendJson(response, 400, { detail: 'Request body must be valid JSON' });
+    }
+    if (!body || typeof body !== 'object') return sendJson(response, 400, { detail: 'Recommendation context is required' });
+    try {
+      const result = await generateRecommendationsExternal(body);
+      if (!result || !Array.isArray(result.recommendations)) return sendJson(response, 502, { detail: 'AI returned an invalid recommendation response' });
+      return sendJson(response, 200, result);
+    } catch (error) {
+      if (error.name === 'AbortError') return sendJson(response, 504, { detail: 'AI provider request timed out' });
+      console.error(`Solution recommendation error: ${error.message}`);
+      return sendJson(response, error.statusCode || 500, { detail: error.message });
+    }
   }
   if (request.method === 'POST' && request.url === '/detect-urgency') {
     let rawBody = '';

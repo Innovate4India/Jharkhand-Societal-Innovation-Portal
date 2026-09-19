@@ -1,26 +1,56 @@
 import Challenge from '../models/Challenge.js';
 import User from '../models/User.js';
+import Project from '../models/Project.js';
 import mongoose from 'mongoose';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { isAllowedChallengeType, challengeUploadDirectory } from '../middleware/challengeUpload.js';
 import { UNIVERSITY_DEPARTMENTS } from '../constants/universityDepartments.js';
+import { normalizeInstitution } from '../utils/universityCoordinatorCodes.js';
+import { createNotification } from '../utils/notifications.js';
 
-function toCitizenStatus(status) {
-  const normalized = String(status || '').trim().toLowerCase();
-  if (['completed', 'resolved'].includes(normalized)) return 'COMPLETE';
-  if (['submitted', 'under_review', 'approved', 'assigned', 'accepted', 'funding_approved', 'cancelled', 'in_progress', 'project_proposed', 'prototype', 'testing', 'deployed', 'rejected', 'pending', 'funded', 'proposal_pending', 'proposal_accepted', 'proposal_rejected', 'not_eligible', 'funded_pending_university_acceptance', 'not_required'].includes(normalized)) {
-    return 'PENDING';
-  }
-  return 'PENDING';
+function deriveCitizenWorkflowStatus(challenge, project) {
+  if (challenge.status === 'resolved' || challenge.status === 'completed') return 'PROBLEM SOLVED';
+  if (project?.currentStage === 'completed' || project?.status === 'completed') return 'AWAITING GOVERNMENT VERIFICATION';
+  if (project?.currentStage === 'deployed' || project?.status === 'deployed') return 'DEPLOYED';
+  if (project?.currentStage === 'testing' || project?.status === 'testing') return 'TESTING';
+  if (project) return 'IN DEVELOPMENT';
+  if (challenge.industryFundingStatus === 'accepted') return 'FUNDING ACCEPTED';
+  if (challenge.department) return 'AWAITING INDUSTRY FUNDING';
+  if (challenge.assignmentStatus === 'accepted') return 'UNIVERSITY ACCEPTED';
+  if (challenge.assignedUniversity) return 'UNIVERSITY ASSIGNED';
+  if (challenge.status === 'approved') return 'GOVERNMENT VERIFIED';
+  return 'UNDER GOVERNMENT REVIEW';
 }
 
-function serializeCitizenChallenge(challenge) {
+function serializeCitizenChallenge(challenge, project) {
   if (!challenge) return null;
   return {
     _id: challenge._id,
     title: challenge.title,
-    status: toCitizenStatus(challenge.status)
+    description: challenge.description,
+    district: challenge.district,
+    status: deriveCitizenWorkflowStatus(challenge, project),
+    rawStatus: challenge.status,
+    submittedBy: challenge.submittedBy,
+    assignmentStatus: challenge.assignmentStatus,
+    assignedUniversity: challenge.assignedUniversity,
+    acceptedByUniversity: challenge.acceptedByUniversity,
+    department: challenge.department,
+    departmentMentor: challenge.departmentMentor,
+    industryFundingStatus: challenge.industryFundingStatus,
+    industryFundedBy: challenge.industryFundedBy,
+    project: project ? {
+      _id: project._id,
+      title: project.title,
+      progressPercentage: project.progressPercentage,
+      currentStage: project.currentStage,
+      status: project.status,
+      university: project.university,
+      universityDepartment: project.universityDepartment,
+      facultyMentor: project.facultyMentor,
+      teamMembers: project.teamMembers,
+    } : null,
   };
 }
 
@@ -30,6 +60,35 @@ function governmentDistrict(user) {
 
 function isGovernmentChallengeAccessAllowed(user, challenge) {
   return user?.role === 'government' && governmentDistrict(user) && challenge?.district === governmentDistrict(user);
+}
+
+async function notifySolutionVerified(challenge, actorId) {
+  const coordinator = challenge.assignedUniversity
+    ? await User.findById(challenge.assignedUniversity).select('institution')
+    : null;
+  const recipients = new Map();
+  if (coordinator?._id) recipients.set(coordinator._id.toString(), 'university');
+  if (coordinator?.institution && challenge.department) {
+    const departmentMembers = await User.find({
+      role: 'university',
+      institution: coordinator.institution,
+      universityDepartment: challenge.department,
+      accountType: { $in: ['faculty', 'student', 'researcher'] },
+    }).select('_id').lean();
+    departmentMembers.forEach((member) => recipients.set(member._id.toString(), 'university'));
+  }
+  await Promise.all([...recipients].map(([recipient, recipientRole]) => createNotification({
+    recipient,
+    recipientRole,
+    type: 'solution_verified',
+    title: 'Solution Verified',
+    message: `The Government has verified the completed solution for '${challenge.title}'.`,
+    relatedEntityType: 'challenge',
+    relatedEntityId: challenge._id,
+    actor: actorId,
+    actorRole: 'government',
+    eventKey: `solution_verified:${challenge._id}:${recipient}`,
+  })));
 }
 
 async function verifyChallengeAndReward(challengeId, government) {
@@ -200,10 +259,17 @@ export const createChallenge = async (req, res, next) => {
       });
     }
 
-    let parsedLocation = location;
-    if (typeof location === 'string') {
+    let parsedLocation = null;
+    if (location !== undefined && location !== null && String(location).trim() !== '') {
       try {
-        parsedLocation = JSON.parse(location);
+        const locationValue = typeof location === 'string' ? JSON.parse(location) : location;
+        const latitude = Number(locationValue?.latitude);
+        const longitude = Number(locationValue?.longitude);
+        if (!Number.isFinite(latitude) || !Number.isFinite(longitude)
+          || latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+          throw new Error('invalid coordinates');
+        }
+        parsedLocation = { latitude, longitude };
       } catch {
         await removeUploadedFiles(files);
         return res.status(400).json({
@@ -226,6 +292,7 @@ export const createChallenge = async (req, res, next) => {
       urgencyReason: typeof urgencyReason === 'string' ? urgencyReason.trim().slice(0, 500) : '',
       affected: typeof affected === 'string' ? affected.trim().slice(0, 2000) : '',
       expectedImpact: typeof expectedImpact === 'string' ? expectedImpact.trim().slice(0, 2000) : '',
+      ...(parsedLocation ? { location: parsedLocation } : {}),
       status: 'under_review',
       submittedBy: userId,
       ...(citizenContactNumber ? { citizenContactNumber: String(citizenContactNumber) } : {}),
@@ -265,6 +332,33 @@ export const createChallenge = async (req, res, next) => {
 
     // Create challenge
     const challenge = await Challenge.create(challengeObj);
+    void createNotification({
+      recipient: userId,
+      recipientRole: 'citizen',
+      type: 'problem_submitted',
+      title: 'Problem Submitted',
+      message: `Your problem "${title}" has been successfully submitted and is now under Government review.`,
+      relatedEntityType: 'challenge',
+      relatedEntityId: challenge._id,
+      actor: userId,
+      actorRole: 'citizen',
+      eventKey: `problem_submitted:${challenge._id}:${userId}`,
+    }).catch((error) => console.error(`Notification creation failed: ${error.message}`));
+    const governmentUsers = await User.find({
+      role: 'government',
+      $or: [{ district }, { governmentDistrict: district }],
+    }).select('_id role').lean();
+    for (const governmentUser of governmentUsers) {
+      void createNotification({
+        recipient: governmentUser._id,
+        recipientRole: governmentUser.role,
+        type: 'challenge_submitted',
+        title: 'New problem submitted',
+        message: `${title} was submitted in ${district}.`,
+        relatedEntityType: 'challenge',
+        relatedEntityId: challenge._id,
+      }).catch((error) => console.error(`Notification creation failed: ${error.message}`));
+    }
 
     // Populate submittedBy user details
     await challenge.populate({
@@ -335,7 +429,16 @@ export const acceptChallenge = async (req, res, next) => {
       });
     }
 
-    if (!challenge.assignedUniversity || challenge.assignedUniversity.toString() !== req.user.id) {
+    const actor = await User.findById(req.user.id).select('role universityRole institution');
+    const assignedUniversity = challenge.assignedUniversity
+      ? await User.findById(challenge.assignedUniversity).select('role institution')
+      : null;
+    const isAssignedUniversity = challenge.assignedUniversity?.toString() === req.user.id;
+    const isAuthorizedCoordinator = actor?.role === 'university'
+      && actor.universityRole === 'innovation_coordinator'
+      && assignedUniversity?.role === 'university'
+      && actor.institution === assignedUniversity.institution;
+    if (!isAssignedUniversity && !isAuthorizedCoordinator) {
       return res.status(403).json({
         success: false,
         message: 'Only the assigned university can accept this challenge'
@@ -354,7 +457,7 @@ export const acceptChallenge = async (req, res, next) => {
     }
 
     challenge.assignmentStatus = 'accepted';
-    challenge.acceptedByUniversity = req.user.id;
+    challenge.acceptedByUniversity = challenge.assignedUniversity;
     challenge.acceptedAt = new Date();
     challenge.status = 'accepted';
     if (!challenge.industryFundingStatus || ['pending', 'eligible', 'not_eligible', 'proposal_pending'].includes(challenge.industryFundingStatus)) {
@@ -367,6 +470,35 @@ export const acceptChallenge = async (req, res, next) => {
     challenge.fundingApprovedBy = null;
     challenge.fundingApprovedAt = null;
     await challenge.save();
+    const governmentUsers = await User.find({
+      role: 'government',
+      $or: [{ district: challenge.district }, { governmentDistrict: challenge.district }],
+    }).select('_id role').lean();
+    for (const governmentUser of governmentUsers) {
+      void createNotification({
+        recipient: governmentUser._id,
+        recipientRole: governmentUser.role,
+        type: 'problem_accepted',
+        title: 'University Accepted Problem',
+        message: `The university accepted the assigned problem "${challenge.title}".`,
+        relatedEntityType: 'challenge',
+        relatedEntityId: challenge._id,
+        actor: req.user.id,
+        actorRole: 'university',
+        eventKey: `problem_accepted:${challenge._id}:${governmentUser._id}`,
+      }).catch((error) => console.error(`Notification creation failed: ${error.message}`));
+    }
+    if (challenge.submittedBy) {
+      void createNotification({
+        recipient: challenge.submittedBy,
+        recipientRole: 'citizen',
+        type: 'challenge_accepted',
+        title: 'University accepted your problem',
+        message: `Your problem "${challenge.title}" was accepted by the university.`,
+        relatedEntityType: 'challenge',
+        relatedEntityId: challenge._id,
+      }).catch((error) => console.error(`Notification creation failed: ${error.message}`));
+    }
     await challenge.populate([
       { path: 'submittedBy', select: 'name email role district villageOrCity' },
       { path: 'assignedUniversity', select: 'name email institution universityDepartment' },
@@ -392,7 +524,7 @@ export const acceptChallenge = async (req, res, next) => {
 
 export const assignChallengeDepartment = async (req, res, next) => {
   try {
-    const { department } = req.body;
+    const department = String(req.body.department || '').trim();
     if (!UNIVERSITY_DEPARTMENTS.includes(department)) {
       return res.status(400).json({ success: false, message: 'Select a valid university department' });
     }
@@ -419,7 +551,7 @@ export const assignChallengeDepartment = async (req, res, next) => {
       !assignedUniversity
       || assignedUniversity.role !== 'university'
       || !coordinator.institution
-      || assignedUniversity.institution !== coordinator.institution
+      || normalizeInstitution(assignedUniversity.institution) !== normalizeInstitution(coordinator.institution)
     ) {
       return res.status(403).json({ success: false, message: 'This challenge is assigned to another university' });
     }
@@ -428,6 +560,41 @@ export const assignChallengeDepartment = async (req, res, next) => {
     challenge.departmentAssignedBy = coordinator._id;
     challenge.departmentAssignedAt = new Date();
     await challenge.save();
+    const coordinators = await User.find({
+      role: 'university',
+      universityRole: 'innovation_coordinator',
+      institution: assignedUniversity.institution,
+    }).select('_id role').lean();
+    for (const coordinator of coordinators) {
+      void createNotification({
+        recipient: coordinator._id,
+        recipientRole: coordinator.role,
+        type: 'department_assigned',
+        title: 'Department Assigned',
+        message: `"${challenge.title}" has been assigned to ${department}.`,
+        relatedEntityType: 'challenge',
+        relatedEntityId: challenge._id,
+        actor: req.user.id,
+        actorRole: 'university',
+        eventKey: `department_assigned:${challenge._id}:${coordinator._id}`,
+      }).catch((error) => console.error(`Notification creation failed: ${error.message}`));
+    }
+    const departmentUsers = await User.find({
+      role: 'university',
+      institution: assignedUniversity.institution,
+      universityDepartment: department,
+    }).select('_id role').lean();
+    for (const departmentUser of departmentUsers) {
+      void createNotification({
+        recipient: departmentUser._id,
+        recipientRole: departmentUser.role,
+        type: 'department_assigned',
+        title: 'Problem assigned to your department',
+        message: `"${challenge.title}" was assigned to ${department}.`,
+        relatedEntityType: 'challenge',
+        relatedEntityId: challenge._id,
+      }).catch((error) => console.error(`Notification creation failed: ${error.message}`));
+    }
     await challenge.populate([
       { path: 'assignedUniversity', select: 'name email institution universityDepartment' },
       { path: 'departmentAssignedBy', select: 'name email institution universityRole' }
@@ -440,10 +607,11 @@ export const assignChallengeDepartment = async (req, res, next) => {
 };
 
 const getCoordinatorChallengeContext = async (req, challengeId) => {
-  const coordinator = await User.findById(req.user.id).select('role universityRole institution');
-  if (!coordinator || coordinator.role !== 'university' || coordinator.universityRole !== 'innovation_coordinator') {
-    return { error: { status: 403, message: 'Only an authorized University Innovation Coordinator can manage department mentors' } };
+  const coordinator = await User.findById(req.user.id).select('role universityRole institution universityDepartment accountType');
+  if (!coordinator || coordinator.role !== 'university') {
+    return { error: { status: 403, message: 'Only authorized University users can manage department mentors' } };
   }
+  const isCoordinator = coordinator.universityRole === 'innovation_coordinator';
 
   const challenge = await Challenge.findById(challengeId);
   if (!challenge) return { error: { status: 404, message: 'Challenge not found' } };
@@ -466,8 +634,15 @@ const getCoordinatorChallengeContext = async (req, challengeId) => {
   ) {
     return { error: { status: 403, message: 'This challenge is assigned to another university' } };
   }
+  if (!isCoordinator && (
+    !coordinator.universityDepartment
+    || coordinator.universityDepartment !== challenge.department
+    || !['faculty', 'researcher'].includes(coordinator.accountType)
+  )) {
+    return { error: { status: 403, message: 'Only an authorized member of the assigned department can manage mentors' } };
+  }
 
-  return { coordinator, challenge };
+  return { coordinator, challenge, isCoordinator };
 };
 
 export const getDepartmentMentors = async (req, res, next) => {
@@ -559,10 +734,18 @@ export const getAllChallenges = async (req, res, next) => {
       filter.priority = priority;
     }
     if (req.user.role === 'university') {
-      filter.$or = [
-        { assignedUniversity: req.user.id },
-        { departmentMentor: req.user.id }
-      ];
+      const user = await User.findById(req.user.id).select('institution universityRole universityDepartment');
+      if (user?.universityRole === 'innovation_coordinator') {
+        filter.$or = [{ assignedUniversity: { $in: await User.find({ role: 'university', institution: user.institution }).distinct('_id') } }];
+      } else if (user?.institution && user.universityDepartment) {
+        const universityIds = await User.find({ role: 'university', institution: user.institution }).distinct('_id');
+        filter.$or = [
+          { assignedUniversity: { $in: universityIds }, department: user.universityDepartment },
+          { departmentMentor: req.user.id }
+        ];
+      } else {
+        filter.$or = [{ assignedUniversity: req.user.id }, { departmentMentor: req.user.id }];
+      }
     } else if (req.user.role === 'citizen') {
       filter.submittedBy = req.user.id;
     } else if (req.user.role === 'government') {
@@ -601,9 +784,20 @@ export const getAllChallenges = async (req, res, next) => {
       });
     }
     const challenges = await challengeQuery.sort({ createdAt: -1 });
-    const serializedChallenges = req.user.role === 'citizen'
-      ? challenges.map(serializeCitizenChallenge)
-      : challenges;
+    let serializedChallenges = challenges;
+    if (req.user.role === 'citizen') {
+      const projects = await Project.find({ challenge: { $in: challenges.map((challenge) => challenge._id) } })
+        .select('_id title challenge progressPercentage currentStage status university universityDepartment facultyMentor teamMembers')
+        .populate('university', 'name institution')
+        .populate('facultyMentor', 'name email accountType')
+        .populate('teamMembers', 'name email accountType')
+        .lean();
+      const projectsByChallenge = new Map(projects.map((project) => [project.challenge.toString(), project]));
+      serializedChallenges = challenges.map((challenge) => serializeCitizenChallenge(
+        challenge,
+        projectsByChallenge.get(challenge._id.toString()),
+      ));
+    }
 
     res.status(200).json({
       success: true,
@@ -679,7 +873,6 @@ export const getChallengeById = async (req, res, next) => {
         return res.status(403).json({ success: false, message: 'You do not have access to challenges outside your district' });
       }
     }
-
     res.status(200).json({
       success: true,
       data: req.user.role === 'citizen' ? serializeCitizenChallenge(challenge) : challenge
@@ -739,7 +932,7 @@ export const updateChallengeStatus = async (req, res, next) => {
       });
     }
 
-    const existingChallenge = await Challenge.findById(id).select('status district assignedUniversity assignmentStatus acceptedByUniversity');
+    const existingChallenge = await Challenge.findById(id).select('status district assignedUniversity assignmentStatus acceptedByUniversity rewardProcessed');
     if (!existingChallenge) {
       return res.status(404).json({
         success: false,
@@ -778,8 +971,59 @@ export const updateChallengeStatus = async (req, res, next) => {
       });
     }
 
+    if (status === 'approved' && existingChallenge.status === 'under_review' && existingChallenge.rewardProcessed) {
+      const completedChallenge = await Challenge.findByIdAndUpdate(
+        id,
+        { status: 'resolved' },
+        { new: true, runValidators: true }
+      );
+      void createNotification({
+        recipient: completedChallenge.submittedBy,
+        recipientRole: 'citizen',
+        type: 'problem_completed',
+        title: '🎉 Problem Completed',
+        message: `Congratulations! Your reported problem "${completedChallenge.title}" has been completed and verified.`,
+        relatedEntityType: 'challenge',
+        relatedEntityId: completedChallenge._id,
+        actor: user._id,
+        actorRole: 'government',
+        eventKey: `problem_completed:${completedChallenge._id}`,
+      }).catch((error) => console.error(`Notification creation failed: ${error.message}`));
+      void notifySolutionVerified(completedChallenge, user._id)
+        .catch((error) => console.error(`Solution verification notification failed: ${error.message}`));
+      return res.status(200).json({
+        success: true,
+        message: 'Completed solution verified and problem marked solved',
+        data: completedChallenge
+      });
+    }
+
     if (status === 'approved' && existingChallenge.status === 'under_review') {
       const verifiedChallenge = await verifyChallengeAndReward(id, user);
+      void createNotification({
+        recipient: verifiedChallenge.submittedBy,
+        recipientRole: 'citizen',
+        type: 'problem_verified',
+        title: 'Problem Verified',
+        message: `Your problem "${verifiedChallenge.title}" has been verified by the District Government.`,
+        relatedEntityType: 'challenge',
+        relatedEntityId: verifiedChallenge._id,
+        actor: user._id,
+        actorRole: 'government',
+        eventKey: `problem_verified:${verifiedChallenge._id}`,
+      }).catch((error) => console.error(`Notification creation failed: ${error.message}`));
+      void createNotification({
+        recipient: verifiedChallenge.submittedBy,
+        recipientRole: 'citizen',
+        type: 'impact_token_earned',
+        title: 'Impact Token Earned',
+        message: 'Your verified problem earned 1 Impact Token.',
+        relatedEntityType: 'challenge',
+        relatedEntityId: verifiedChallenge._id,
+        actor: user._id,
+        actorRole: 'government',
+        eventKey: `impact_token_earned:${verifiedChallenge._id}`,
+      }).catch((error) => console.error(`Notification creation failed: ${error.message}`));
       await verifiedChallenge.populate([
         { path: 'submittedBy', select: 'name email role district villageOrCity' },
         { path: 'assignedUniversity', select: 'name email institution universityDepartment' }
@@ -968,10 +1212,13 @@ export const assignChallenge = async (req, res, next) => {
       });
     }
 
-    if (universityUser.role !== 'university') {
+    if (universityUser.role !== 'university'
+      || universityUser.accountType !== 'coordinator'
+      || universityUser.universityRole !== 'innovation_coordinator'
+      || !universityUser.institution) {
       return res.status(400).json({
         success: false,
-        message: 'Assigned user must have university role'
+        message: 'Assigned user must be an active university coordinator'
       });
     }
 
@@ -1026,6 +1273,27 @@ export const assignChallenge = async (req, res, next) => {
         message: 'Challenge not found'
       });
     }
+
+    void createNotification({
+      recipient: assignedUniversity,
+      recipientRole: 'university',
+      type: 'university_assigned',
+      title: 'New Government Assignment',
+      message: `District Government has assigned problem '${challenge.title}' to ${challenge.assignedUniversity?.institution || 'your university'}. Review and acceptance are required.`,
+      relatedEntityType: 'challenge',
+      relatedEntityId: challenge._id,
+      eventKey: `university_assigned:${challenge._id}`,
+    }).catch((error) => console.error(`Notification creation failed: ${error.message}`));
+    void createNotification({
+      recipient: challenge.submittedBy,
+      recipientRole: 'citizen',
+      type: 'university_assigned',
+      title: 'University assigned',
+      message: `Your problem "${challenge.title}" was assigned to a university.`,
+      relatedEntityType: 'challenge',
+      relatedEntityId: challenge._id,
+      eventKey: `university_assigned:${challenge._id}:citizen`,
+    }).catch((error) => console.error(`Notification creation failed: ${error.message}`));
 
     res.status(200).json({
       success: true,

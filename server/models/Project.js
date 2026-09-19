@@ -60,6 +60,33 @@ const projectSchema = new mongoose.Schema(
       },
       default: 'proposed'
     },
+    progressPercentage: {
+      type: Number,
+      min: 0,
+      max: 100,
+      default: 0
+    },
+    currentStage: {
+      type: String,
+      enum: ['proposed', 'prototype', 'testing', 'deployed', 'completed'],
+      default: 'proposed'
+    },
+    completedWork: { type: String, trim: true, default: '' },
+    remainingWork: { type: String, trim: true, default: '' },
+    nextTask: { type: String, trim: true, default: '' },
+    progressUpdates: [
+      {
+        stage: {
+          type: String,
+          enum: ['proposed', 'prototype', 'testing', 'deployed', 'completed'],
+          required: true
+        },
+        percentage: { type: Number, min: 0, max: 100, required: true },
+        description: { type: String, trim: true, required: true },
+        updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+        updatedAt: { type: Date, default: Date.now }
+      }
+    ],
 
     // Team members
     teamMembers: [
@@ -84,6 +111,17 @@ const projectSchema = new mongoose.Schema(
     expectedImpact: {
       type: String,
       required: [true, 'Expected impact is required']
+    },
+    solutionTitle: { type: String, trim: true, default: '' },
+    solutionDescription: { type: String, trim: true, default: '' },
+    solutionApproach: { type: String, trim: true, default: '' },
+    technology: { type: String, trim: true, default: '' },
+    implementationDetails: { type: String, trim: true, default: '' },
+    expectedOutcome: { type: String, trim: true, default: '' },
+    solutionStatus: {
+      type: String,
+      enum: ['draft', 'submitted'],
+      default: 'draft'
     },
     estimatedBudget: {
       type: Number,

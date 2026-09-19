@@ -29,19 +29,15 @@ export const generateUniversityCoordinatorCode = async (req, res, next) => {
     }).select('institution'))?.institution;
     if (!institution) return res.status(404).json({ success: false, message: 'University/Institution is not registered' });
 
-    const existing = await UniversityCoordinatorCode.findOne({ institutionKey }).select('active');
-    if (existing?.active) {
-      return res.status(409).json({ success: false, message: 'This University already has an active coordinator code. Use that code to register or contact an administrator for rotation.' });
-    }
-
     const code = createCoordinatorCode();
     const update = {
       institution,
       institutionKey,
       codeHash: hashCoordinatorCode(code),
       active: true,
-      ...(existing ? { rotatedAt: new Date() } : {})
+      rotatedAt: new Date()
     };
+    const existing = await UniversityCoordinatorCode.findOne({ institutionKey }).select('_id');
     if (existing) await UniversityCoordinatorCode.updateOne({ _id: existing._id }, update);
     else await UniversityCoordinatorCode.create(update);
 
@@ -122,12 +118,19 @@ export const registerUser = async (req, res, next) => {
     if (role === 'university') {
       if (roleSpecificData.accountType === 'coordinator') {
         const institutionKey = normalizeInstitution(roleSpecificData.institution);
+        const submittedCode = String(universityCoordinatorCode || '').trim();
+        if (!institutionKey || !submittedCode) {
+          return res.status(400).json({
+            success: false,
+            message: 'University and coordinator authorization code are required'
+          });
+        }
         const coordinatorCode = await UniversityCoordinatorCode.findOne({
           institutionKey,
           active: true,
-          codeHash: hashCoordinatorCode(universityCoordinatorCode)
+          codeHash: hashCoordinatorCode(submittedCode)
         });
-        if (!coordinatorCode) {
+        if (!coordinatorCode || normalizeInstitution(coordinatorCode.institution) !== institutionKey) {
           return res.status(403).json({
             success: false,
             message: 'Invalid or inactive coordinator code for the selected University'
@@ -135,6 +138,7 @@ export const registerUser = async (req, res, next) => {
         }
         userObj.universityRole = 'innovation_coordinator';
         userObj.institution = coordinatorCode.institution;
+        userObj.universityDepartment = null;
       } else {
         userObj.universityRole = 'member';
       }

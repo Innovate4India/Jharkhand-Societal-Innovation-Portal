@@ -2,6 +2,7 @@
 import Challenge from '../models/Challenge.js';
 import Project from '../models/Project.js';
 import Sponsorship from '../models/Sponsorship.js';
+import { createNotification } from '../utils/notifications.js';
 import User from '../models/User.js';
 
 const opportunityFilter = {
@@ -135,6 +136,36 @@ export const createSponsorship = async (req, res, next) => {
       contactPhone,
       status: 'pending'
     });
+    void createNotification({
+      recipient: req.user.id,
+      recipientRole: 'industry',
+      type: 'funding_proposal_submitted',
+      title: 'Funding Proposal Submitted',
+      message: `Your funding proposal of ₹${numericAmount} for "${challenge.title}" has been submitted.`,
+      relatedEntityType: 'challenge',
+      relatedEntityId: challenge._id,
+      actor: req.user.id,
+      actorRole: 'industry',
+      eventKey: `funding_proposal_submitted:${sponsorship._id}:industry`,
+    }).catch((error) => console.error(`Notification creation failed: ${error.message}`));
+    const assignedUser = await User.findById(challenge.assignedUniversity).select('institution');
+    const coordinators = assignedUser?.institution
+      ? await User.find({ role: 'university', universityRole: 'innovation_coordinator', institution: assignedUser.institution }).select('_id role').lean()
+      : [];
+    for (const coordinator of coordinators) {
+      void createNotification({
+        recipient: coordinator._id,
+        recipientRole: coordinator.role,
+        type: 'funding_proposal_submitted',
+        title: 'New Industry Funding Proposal',
+        message: `An industry organization submitted a funding proposal of ₹${numericAmount} for "${challenge.title}".`,
+        relatedEntityType: 'challenge',
+        relatedEntityId: challenge._id,
+        actor: req.user.id,
+        actorRole: 'industry',
+        eventKey: `funding_proposal_submitted:${sponsorship._id}:${coordinator._id}`,
+      }).catch((error) => console.error(`Notification creation failed: ${error.message}`));
+    }
 
     const now = new Date();
     challenge.industryFundingStatus = 'proposal_pending';
@@ -146,7 +177,6 @@ export const createSponsorship = async (req, res, next) => {
     challenge.industryFundingContactPhone = contactPhone;
     challenge.industryFundingMessage = notes;
     await challenge.save();
-
     if (project) await Project.findByIdAndUpdate(project._id, { $addToSet: { industryPartners: req.user.id } });
     await sponsorship.populate([
       { path: 'project', select: 'title description status estimatedBudget university universityDepartment' },
@@ -164,7 +194,16 @@ export const acceptSponsorship = async (req, res, next) => {
   try {
     if (!validId(req.params.id)) return res.status(404).json({ success: false, message: 'Challenge not found' });
     const challenge = await Challenge.findById(req.params.id);
-    if (!challenge || challenge.assignedUniversity?.toString() !== req.user.id || challenge.assignmentStatus !== 'accepted') {
+    const actor = await User.findById(req.user.id).select('role universityRole institution');
+    const assignedUniversity = challenge?.assignedUniversity
+      ? await User.findById(challenge.assignedUniversity).select('role institution')
+      : null;
+    const authorized = challenge
+      && challenge.assignmentStatus === 'accepted'
+      && assignedUniversity?.role === 'university'
+      && (challenge.assignedUniversity.toString() === req.user.id
+        || (actor?.universityRole === 'innovation_coordinator' && actor.institution === assignedUniversity.institution));
+    if (!authorized) {
       return res.status(403).json({ success: false, message: 'Only the assigned university can accept this funding proposal' });
     }
 
@@ -176,14 +215,43 @@ export const acceptSponsorship = async (req, res, next) => {
     await sponsorship.save();
 
     challenge.industryFundingStatus = 'proposal_accepted';
-    challenge.industryFundingAcceptedBy = req.user.id;
+    challenge.industryFundingAcceptedBy = challenge.assignedUniversity;
     challenge.industryFundingAcceptedAt = sponsorship.approvedAt;
     challenge.fundingStatus = 'pending';
     challenge.fundingAmount = sponsorship.amount;
     challenge.fundingApprovedAt = null;
     challenge.status = 'accepted';
     await challenge.save();
-
+    void createNotification({
+      recipient: sponsorship.industry,
+      recipientRole: 'industry',
+      type: 'funding_accepted',
+      title: 'Funding Proposal Accepted',
+      message: `Your funding proposal for "${challenge.title}" has been accepted by the university.`,
+      relatedEntityType: 'challenge',
+      relatedEntityId: challenge._id,
+      actor: req.user.id,
+      actorRole: 'university',
+      eventKey: `funding_accepted:${sponsorship._id}:industry`,
+    }).catch((error) => console.error(`Notification creation failed: ${error.message}`));
+    const university = await User.findById(challenge.assignedUniversity).select('institution');
+    const departmentUsers = challenge.department && university?.institution
+      ? await User.find({ role: 'university', institution: university.institution, universityDepartment: challenge.department }).select('_id role').lean()
+      : [];
+    for (const departmentUser of departmentUsers) {
+      void createNotification({
+        recipient: departmentUser._id,
+        recipientRole: departmentUser.role,
+        type: 'funding_accepted',
+        title: 'Industry Funding Accepted',
+        message: `Industry funding for "${challenge.title}" has been accepted. You can now create the project.`,
+        relatedEntityType: 'challenge',
+        relatedEntityId: challenge._id,
+        actor: req.user.id,
+        actorRole: 'university',
+        eventKey: `funding_accepted:${sponsorship._id}:department:${departmentUser._id}`,
+      }).catch((error) => console.error(`Notification creation failed: ${error.message}`));
+    }
     if (sponsorship.project) await Project.findByIdAndUpdate(sponsorship.project, { $addToSet: { industryPartners: sponsorship.industry } });
     res.json({ success: true, message: 'Funding proposal accepted', data: challenge });
   } catch (error) { next(error); }
@@ -193,7 +261,16 @@ export const rejectSponsorship = async (req, res, next) => {
   try {
     if (!validId(req.params.id)) return res.status(404).json({ success: false, message: 'Challenge not found' });
     const challenge = await Challenge.findById(req.params.id);
-    if (!challenge || challenge.assignedUniversity?.toString() !== req.user.id || challenge.assignmentStatus !== 'accepted') {
+    const actor = await User.findById(req.user.id).select('role universityRole institution');
+    const assignedUniversity = challenge?.assignedUniversity
+      ? await User.findById(challenge.assignedUniversity).select('role institution')
+      : null;
+    const authorized = challenge
+      && challenge.assignmentStatus === 'accepted'
+      && assignedUniversity?.role === 'university'
+      && (challenge.assignedUniversity.toString() === req.user.id
+        || (actor?.universityRole === 'innovation_coordinator' && actor.institution === assignedUniversity.institution));
+    if (!authorized) {
       return res.status(403).json({ success: false, message: 'Only the assigned university can reject this funding proposal' });
     }
 
@@ -211,6 +288,18 @@ export const rejectSponsorship = async (req, res, next) => {
     challenge.fundingApprovedAt = null;
     challenge.status = 'accepted';
     await challenge.save();
+    void createNotification({
+      recipient: sponsorship.industry,
+      recipientRole: 'industry',
+      type: 'funding_rejected',
+      title: 'Funding Proposal Update',
+      message: `Your funding proposal for "${challenge.title}" was rejected by the university.`,
+      relatedEntityType: 'challenge',
+      relatedEntityId: challenge._id,
+      actor: req.user.id,
+      actorRole: 'university',
+      eventKey: `funding_rejected:${sponsorship._id}:industry`,
+    }).catch((error) => console.error(`Notification creation failed: ${error.message}`));
 
     res.json({ success: true, message: 'Funding proposal rejected', data: challenge });
   } catch (error) { next(error); }
@@ -218,8 +307,12 @@ export const rejectSponsorship = async (req, res, next) => {
 
 export const getUniversitySponsorships = async (req, res, next) => {
   try {
-    const projects = await Project.find({ university: req.user.id }).select('_id challenge');
-    const challenges = await Challenge.find({ assignedUniversity: req.user.id }).select('_id');
+    const user = await User.findById(req.user.id).select('role universityRole institution');
+    const universityIds = user?.universityRole === 'innovation_coordinator'
+      ? await User.find({ role: 'university', institution: user.institution }).distinct('_id')
+      : [req.user.id];
+    const projects = await Project.find({ university: { $in: universityIds } }).select('_id challenge');
+    const challenges = await Challenge.find({ assignedUniversity: { $in: universityIds } }).select('_id');
     const sponsorships = await Sponsorship.find({ $or: [{ project: { $in: projects.map((p) => p._id) } }, { challenge: { $in: challenges.map((c) => c._id) } }] })
       .populate('industry', 'organizationName organizationType expertise name email')
       .populate('project', 'title status')

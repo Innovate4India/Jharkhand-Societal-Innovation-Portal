@@ -7,8 +7,12 @@ import Project from '../models/Project.js';
 // @access  Private - Government only
 export const getUniversities = async (req, res, next) => {
   try {
-    const universities = await User.find({ role: 'university' })
-      .select('_id name email institution universityDepartment accountType')
+    const universities = await User.find({
+      role: 'university',
+      accountType: 'coordinator',
+      universityRole: 'innovation_coordinator',
+    })
+      .select('_id name email institution accountType universityRole')
       .sort({ institution: 1, name: 1 })
       .lean();
 
@@ -99,6 +103,29 @@ export const getUniversityMembers = async (req, res, next) => {
     const members = await User.find({ role: 'university', institution: user.institution })
       .select('_id name email institution universityDepartment accountType')
       .sort({ name: 1 })
+      .lean();
+
+    res.status(200).json({ success: true, data: members });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getDepartmentMembers = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.id).select('role institution universityDepartment universityRole');
+    if (!user || user.role !== 'university' || !user.institution || !user.universityDepartment) {
+      return res.status(403).json({ success: false, message: 'A university department profile is required' });
+    }
+
+    const members = await User.find({
+      role: 'university',
+      institution: user.institution,
+      universityDepartment: user.universityDepartment,
+      accountType: { $in: ['student', 'researcher', 'faculty'] }
+    })
+      .select('_id name email institution universityDepartment accountType primaryClub')
+      .sort({ accountType: 1, name: 1 })
       .lean();
 
     res.status(200).json({ success: true, data: members });

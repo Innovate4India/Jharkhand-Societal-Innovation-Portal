@@ -18,6 +18,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Search,
+  X,
   ShieldCheck,
   Sparkles,
   UploadCloud,
@@ -37,6 +38,12 @@ import {
   saveCurrentUser,
   reverseGeocode,
   updateUniversityProfile,
+  getNotifications,
+  markAllNotificationsRead,
+  markNotificationRead,
+  searchPortal,
+  type PortalNotification,
+  type PortalSearchResult,
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { UNIVERSITY_DEPARTMENTS } from "@/lib/university-departments";
@@ -44,6 +51,8 @@ import { UNIVERSITY_CLUBS } from "@/lib/university-clubs";
 import ChallengesPage from "@/components/challenges-page";
 import GovernmentDashboard from "@/components/government-dashboard";
 import UniversityDashboard from "@/components/university-dashboard";
+import UniversityCoordinatorDashboard, { type CoordinatorSection } from "@/components/university-coordinator-dashboard";
+import DepartmentDashboard, { type DepartmentSection } from "@/components/department-dashboard";
 import IndustryDashboard from "@/components/industry-dashboard";
 import SahayakChat, { OfflineHomepageSahayak } from "@/components/sahayak-chat";
 import DashboardShell from "@/components/dashboard-shell";
@@ -106,6 +115,12 @@ function Sidebar({
   setOpen,
   onGovernmentAction,
   onLogout,
+  coordinator,
+  coordinatorSection,
+  onCoordinatorNavigate,
+  department,
+  departmentSection,
+  onDepartmentNavigate,
 }: {
   view: View;
   setView: (v: View) => void;
@@ -114,6 +129,12 @@ function Sidebar({
   setOpen: (v: boolean) => void;
   onGovernmentAction: (action: string) => void;
   onLogout: () => void;
+  coordinator: boolean;
+  coordinatorSection: CoordinatorSection;
+  onCoordinatorNavigate: (section: CoordinatorSection) => void;
+  department: boolean;
+  departmentSection: DepartmentSection;
+  onDepartmentNavigate: (section: DepartmentSection) => void;
 }) {
   return (
     <aside
@@ -205,7 +226,43 @@ function Sidebar({
             ))}
           </>
         )}
-        {role === "University" && (
+        {role === "University" && coordinator && (
+          <>
+            {[
+              ["dashboard", "Dashboard"],
+              ["problems", "Government Problems"],
+              ["departments", "Departments"],
+              ["mentors", "Faculty & Mentors"],
+              ["proposals", "Industry Proposals"],
+              ["projects", "Projects"],
+              ["impact", "Impact & Solutions"],
+              ["notifications", "Notifications"],
+              ["profile", "Profile"],
+            ].map(([key, label]) => (
+              <button key={key} onClick={() => onCoordinatorNavigate(key as CoordinatorSection)} className={cn("flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium", coordinatorSection === key ? "bg-[#E31E24] text-white" : "text-white/80 hover:bg-[#0B2D6B] hover:text-white")}>
+                <Flag className="size-4" />
+                {label}
+              </button>
+            ))}
+          </>
+        )}
+        {role === "University" && department && !coordinator && (
+          <>
+            {            [
+              ["problems", "Assigned Problems"],
+              ["project", "Project"],
+              ["progress", "Progress"],
+              ["library", "Solution Library"],
+              ["profile", "Profile"],
+            ].map(([key, label]) => (
+              <button key={key} onClick={() => onDepartmentNavigate(key as DepartmentSection)} className={cn("flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium", departmentSection === key ? "bg-[#E31E24] text-white" : "text-white/80 hover:bg-[#0B2D6B] hover:text-white")}>
+                <Flag className="size-4" />
+                {label}
+              </button>
+            ))}
+          </>
+        )}
+        {role === "University" && !coordinator && !department && (
           <>
             {["Assigned challenges", "Projects", "Faculty mentors", "Student teams", "Progress tracking", "Completed solutions"].map((label) => (
               <button key={label} onClick={() => setView("university")} className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-white/80 hover:bg-[#0B2D6B] hover:text-white">
@@ -245,6 +302,7 @@ function Topbar({
   isCitizen,
   rewardRefreshToken,
   onLogout,
+  onNavigate,
 }: {
   title: string;
   open: boolean;
@@ -253,10 +311,19 @@ function Topbar({
   isCitizen: boolean;
   rewardRefreshToken: number;
   onLogout: () => void;
+  onNavigate: (href: string) => void;
 }) {
   const [showMenu, setShowMenu] = useState(false);
   const [impactTokens, setImpactTokens] = useState<number | null>(null);
   const [loadingRewards, setLoadingRewards] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<PortalSearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState("");
+  const [notifications, setNotifications] = useState<PortalNotification[]>([]);
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
 
   useEffect(() => {
     if (!isCitizen) return;
@@ -275,6 +342,63 @@ function Topbar({
       active = false;
     };
   }, [isCitizen, rewardRefreshToken]);
+
+  useEffect(() => {
+    let active = true;
+    void getNotifications().then((response) => {
+      if (active && response.success) {
+        const notificationList = Array.isArray(response.data?.notifications) ? response.data.notifications : [];
+        setNotifications(notificationList);
+        setUnreadNotificationCount(response.data?.unreadCount || 0);
+      }
+    });
+    const interval = window.setInterval(() => {
+      void getNotifications().then((response) => {
+        if (active && response.success) {
+          const notificationList = Array.isArray(response.data?.notifications) ? response.data.notifications : [];
+          setNotifications(notificationList);
+          setUnreadNotificationCount(response.data?.unreadCount || 0);
+        }
+      });
+    }, 15000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (searchQuery.trim().length < 2) {
+      setSearchResults([]);
+      setSearching(false);
+      setSearchError("");
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      setSearching(true);
+      setSearchError("");
+      void searchPortal(searchQuery.trim()).then((response) => {
+        if (response.success) setSearchResults(response.data || []);
+        else setSearchError("Search is temporarily unavailable.");
+        setSearching(false);
+      });
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [searchQuery]);
+
+  const unreadCount = unreadNotificationCount;
+  const handleNotification = async (item: PortalNotification) => {
+    if (!item.read) {
+      const response = await markNotificationRead(item._id);
+      if (response.success) {
+        setNotifications((items) => items.map((entry) => entry._id === item._id ? { ...entry, read: true } : entry));
+        setUnreadNotificationCount((count) => Math.max(0, count - 1));
+      }
+    }
+    if (item.relatedEntityType === "challenge" && item.relatedEntityId) onNavigate(`/challenges/${item.relatedEntityId}`);
+    if (item.relatedEntityType === "project" && item.relatedEntityId) onNavigate(`/projects/${item.relatedEntityId}`);
+    setShowNotifications(false);
+  };
 
   return (
     <header className="mobile-portal-header flex h-20 min-w-0 items-center justify-between gap-2 border-b border-slate-200 bg-white px-3 sm:px-8">
@@ -298,8 +422,50 @@ function Topbar({
       </div>
       <div className="flex shrink-0 items-center gap-2 sm:gap-4">
         <ThemeToggle />
-        <Search className="hidden size-4 text-slate-400 sm:block" />
-        <Bell className="size-4 text-slate-500" />
+        <div className="relative">
+          <button type="button" onClick={() => setShowSearch((value) => !value)} aria-label="Search portal" title="Search portal" className="grid size-9 place-items-center rounded-lg text-slate-500 hover:bg-slate-50">
+            <Search className="size-4" />
+          </button>
+          {showSearch && (
+            <div className="absolute right-0 top-full z-50 mt-2 w-[min(22rem,calc(100vw-2rem))] rounded-xl border border-slate-200 bg-white p-3 shadow-xl">
+              <div className="flex items-center gap-2 rounded-lg border border-slate-200 px-3">
+                <Search className="size-4 text-slate-400" />
+                <input autoFocus value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search problems, projects, solutions..." className="min-w-0 flex-1 py-2 text-sm outline-none" />
+                <button type="button" onClick={() => { setSearchQuery(""); setShowSearch(false); }} aria-label="Close search"><X className="size-4 text-slate-400" /></button>
+              </div>
+              <div className="mt-2 max-h-80 overflow-y-auto">
+                {searching && <p className="p-3 text-sm text-slate-500">Searching...</p>}
+                {!searching && searchError && <p className="p-3 text-sm text-red-600">{searchError}</p>}
+                {!searching && !searchError && searchQuery.trim().length >= 2 && !searchResults.length && <p className="p-3 text-sm text-slate-500">No matching results found.</p>}
+                {searchResults.map((item) => (
+                  <button key={`${item.type}-${item.id}`} type="button" onClick={() => { setShowSearch(false); onNavigate(item.href); }} className="block w-full rounded-lg p-3 text-left hover:bg-slate-50">
+                    <span className="text-[10px] font-bold uppercase tracking-wide text-red-600">{item.type}</span>
+                    <span className="mt-1 block text-sm font-semibold text-slate-900">{item.title}</span>
+                    <span className="mt-1 block truncate text-xs text-slate-500">{item.description}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="relative">
+          <button type="button" onClick={() => setShowNotifications((value) => !value)} aria-label="Notifications" title="Notifications" className="relative grid size-9 place-items-center rounded-lg text-slate-500 hover:bg-slate-50">
+            <Bell className="size-4" />
+            {unreadCount > 0 && <span className="absolute -right-0.5 -top-0.5 grid min-w-4 place-items-center rounded-full bg-red-600 px-1 text-[10px] font-bold text-white">{unreadCount}</span>}
+          </button>
+          {showNotifications && (
+            <div className="absolute right-0 top-full z-50 mt-2 w-[min(24rem,calc(100vw-2rem))] rounded-xl border border-slate-200 bg-white shadow-xl">
+              <div className="flex items-center justify-between border-b border-slate-100 p-3">
+                <strong className="text-sm text-slate-900">Notifications</strong>
+                <button type="button" onClick={async () => { const response = await markAllNotificationsRead(); if (response.success) { setNotifications((items) => items.map((item) => ({ ...item, read: true }))); setUnreadNotificationCount(0); } }} className="text-xs font-semibold text-blue-700">Mark all as read</button>
+              </div>
+              <div className="max-h-80 overflow-y-auto">
+                {!notifications.length && <p className="p-4 text-sm text-slate-500">No notifications yet.</p>}
+                {notifications.map((item) => <button key={item._id} type="button" onClick={() => void handleNotification(item)} className={cn("block w-full border-b border-slate-100 p-3 text-left", item.read ? "bg-white" : "bg-blue-50")}><span className="block text-sm font-semibold text-slate-900">{item.title}</span><span className="mt-1 block text-xs text-slate-600">{item.message}</span><span className="mt-1 block text-[11px] text-slate-400">{new Date(item.createdAt).toLocaleString()}</span></button>)}
+              </div>
+            </div>
+          )}
+        </div>
         {isCitizen && (
           <span
             className={`inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800 sm:px-2.5 ${loadingRewards ? "animate-pulse" : ""}`}
@@ -911,15 +1077,15 @@ function Submit({ setView }: { setView: (v: View) => void }) {
 function Dashboard({ setView, onRewardsChanged }: { setView: (v: View) => void; onRewardsChanged: () => void }) {
   const currentUser = getCurrentUserFromStorage();
   const [submittedCount, setSubmittedCount] = useState<number | null>(null);
-  const [submittedChallenges, setSubmittedChallenges] = useState<Array<{ _id: string; title: string; status: string }>>([]);
+  const [submittedChallenges, setSubmittedChallenges] = useState<Array<{
+    _id: string;
+    title: string;
+    status: string;
+    project?: Awaited<ReturnType<typeof getChallenges>>['data'][number]['project'];
+  }>>([]);
   const [rewards, setRewards] = useState<Awaited<ReturnType<typeof getMyRewards>>['data']>(undefined);
   const [rewardMessage, setRewardMessage] = useState('');
   const [redeeming, setRedeeming] = useState(false);
-
-  function getCitizenStatus(status: string) {
-    const normalized = String(status || '').trim().toLowerCase();
-    return ['completed', 'resolved'].includes(normalized) ? 'COMPLETE' : 'PENDING';
-  }
 
   useEffect(() => {
     async function loadSubmittedChallenges() {
@@ -941,7 +1107,8 @@ function Dashboard({ setView, onRewardsChanged }: { setView: (v: View) => void; 
       setSubmittedChallenges(myChallenges.map((challenge) => ({
         _id: challenge._id,
         title: challenge.title,
-        status: getCitizenStatus(challenge.status),
+        status: challenge.status,
+        project: challenge.project,
       })));
       setSubmittedCount(myChallenges.length);
     }
@@ -974,7 +1141,7 @@ function Dashboard({ setView, onRewardsChanged }: { setView: (v: View) => void; 
       subtitle="Track your submitted problems with a simple status update."
       stats={[
         { label: "Problems submitted", value: submittedCount === null ? "—" : String(submittedCount), note: "Submitted by you", icon: FileText },
-        { label: "Current status", value: submittedChallenges.some((challenge) => challenge.status === 'COMPLETE') ? 'COMPLETE' : 'PENDING', note: 'Latest visible update', icon: CheckCircle2 },
+        { label: "Current status", value: submittedChallenges[0]?.status || '—', note: 'Latest visible update', icon: CheckCircle2 },
       ]}
       showCitizenTagline
       actions={<button onClick={() => setView("submit")} className="rounded-lg bg-[#E31E24] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#C8171D]">Submit a problem</button>}
@@ -986,10 +1153,20 @@ function Dashboard({ setView, onRewardsChanged }: { setView: (v: View) => void; 
             <div key={challenge._id} className="rounded-xl border border-slate-100 bg-slate-50 p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <p className="min-w-0 flex-1 break-words font-bold text-slate-800">Problem: {challenge.title}</p>
-                <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${challenge.status === 'COMPLETE' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800'}`}>
+                <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${challenge.status === 'PROBLEM SOLVED' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800'}`}>
                   {challenge.status}
                 </span>
               </div>
+              {challenge.project ? (
+                <div className="mt-3 grid gap-2 text-sm text-slate-600 sm:grid-cols-2">
+                  <p><span className="font-semibold text-slate-800">Project:</span> {challenge.project.title || 'Active project'}</p>
+                  <p><span className="font-semibold text-slate-800">Progress:</span> {challenge.project.progressPercentage ?? 0}%</p>
+                  <p><span className="font-semibold text-slate-800">Stage:</span> {challenge.project.currentStage || 'Not started'}</p>
+                  <p><span className="font-semibold text-slate-800">University:</span> {typeof challenge.project.university === 'object' ? challenge.project.university?.institution || challenge.project.university?.name : challenge.project.university || '—'}</p>
+                  <p><span className="font-semibold text-slate-800">Department:</span> {challenge.project.universityDepartment || '—'}</p>
+                  <p><span className="font-semibold text-slate-800">Mentor:</span> {typeof challenge.project.facultyMentor === 'object' ? challenge.project.facultyMentor?.name || '—' : challenge.project.facultyMentor || '—'}</p>
+                </div>
+              ) : null}
             </div>
           )) : <p className="text-sm text-slate-500">Your submitted problems will appear here.</p>}
         </div>
@@ -1037,6 +1214,10 @@ export default function PortalShell() {
   const [open, setOpen] = useState(true);
   const [governmentAction, setGovernmentAction] = useState('');
   const [rewardRefreshToken, setRewardRefreshToken] = useState(0);
+  const [coordinatorSection, setCoordinatorSection] = useState<CoordinatorSection>("dashboard");
+  const [departmentSection, setDepartmentSection] = useState<DepartmentSection>("problems");
+  const isCoordinator = role === "University" && currentUser?.universityRole === "innovation_coordinator";
+  const isDepartmentUser = role === "University" && !isCoordinator && (currentUser?.accountType === "faculty" || currentUser?.accountType === "researcher") && Boolean(currentUser?.institution && currentUser?.universityDepartment);
   useEffect(() => {
     if (window.matchMedia("(max-width: 1023px)").matches) {
       setOpen(false);
@@ -1078,6 +1259,7 @@ export default function PortalShell() {
       setRole(nextRole);
       setAuthenticated(true);
       setView(nextRole === "Government" ? "government" : nextRole === "University" ? "university" : nextRole === "Industry" ? "industry" : "citizen");
+      if (nextRole === "University" && response.data.user.universityRole === "innovation_coordinator") setCoordinatorSection("dashboard");
     }
     void restoreSession();
   }, [router]);
@@ -1137,6 +1319,20 @@ export default function PortalShell() {
           setView("government")
         }}
         onLogout={handleLogout}
+        coordinator={Boolean(isCoordinator)}
+        coordinatorSection={coordinatorSection}
+        onCoordinatorNavigate={(section: CoordinatorSection) => {
+          setCoordinatorSection(section)
+          setView("university")
+          setOpen(false)
+        }}
+        department={Boolean(isDepartmentUser)}
+        departmentSection={departmentSection}
+        onDepartmentNavigate={(section: DepartmentSection) => {
+          setDepartmentSection(section);
+          setView("university");
+          setOpen(false);
+        }}
       />
       {open && (
         <button
@@ -1154,6 +1350,7 @@ export default function PortalShell() {
           isCitizen={role === "Citizen"}
           rewardRefreshToken={rewardRefreshToken}
           onLogout={handleLogout}
+          onNavigate={(href) => router.push(href)}
         />
         {view === "submit" ? (
           <Submit setView={guardedSetView} />
@@ -1162,7 +1359,11 @@ export default function PortalShell() {
         ) : view === "government" ? (
           <GovernmentDashboard requestedAction={governmentAction} />
         ) : view === "university" ? (
-          <UniversityDashboard />
+          isCoordinator
+            ? <UniversityCoordinatorDashboard user={currentUser || {}} section={coordinatorSection} onSectionChange={setCoordinatorSection} />
+            : isDepartmentUser
+              ? <DepartmentDashboard user={currentUser || {}} section={departmentSection} onSectionChange={setDepartmentSection} />
+              : <UniversityDashboard />
         ) : view === "industry" ? (
           <IndustryDashboard />
         ) : (
