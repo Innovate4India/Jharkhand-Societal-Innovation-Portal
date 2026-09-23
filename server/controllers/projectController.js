@@ -128,6 +128,12 @@ export const createProject = async (req, res, next) => {
         message: `Project type must be one of: ${validProjectTypes.join(', ')}`
       });
     }
+        const stageOrder = ['proposed', 'prototype', 'testing', 'deployed', 'completed'];
+        const currentIndex = stageOrder.indexOf(project.currentStage || 'proposed');
+        const nextIndex = stageOrder.indexOf(currentStage);
+        if (nextIndex < currentIndex || nextIndex > currentIndex + 1) {
+          return res.status(400).json({ success: false, message: 'Project stages must be updated sequentially' });
+        }
 
     // Validate timeline
     if (!timeline.startDate || !timeline.expectedCompletionDate) {
@@ -557,12 +563,23 @@ export const updateProjectStatus = async (req, res, next) => {
 // @access  Private - Project-owning university only
 export const updateProjectProgress = async (req, res, next) => {
   try {
-    const { currentStage, description } = req.body;
-    const stagePercentages = { proposed: 20, prototype: 40, testing: 60, deployed: 80, completed: 100 };
+    const { progressPercentage, currentStage, description } = req.body;
+    const percentage = typeof progressPercentage === 'number'
+      ? progressPercentage
+      : typeof progressPercentage === 'string' && /^\d+$/.test(progressPercentage)
+        ? Number(progressPercentage)
+        : NaN;
+    const validStages = ['proposed', 'prototype', 'testing', 'deployed', 'completed'];
     const trimmedDescription = typeof description === 'string' ? description.trim() : '';
-    const percentage = stagePercentages[currentStage];
-    if (!percentage) {
-      return res.status(400).json({ success: false, message: 'A valid project stage is required' });
+    if (progressPercentage === '' || progressPercentage === null || progressPercentage === undefined
+      || !Number.isInteger(percentage) || percentage < 0 || percentage > 100 || !validStages.includes(currentStage)) {
+      return res.status(400).json({ success: false, message: 'Progress percentage must be an integer between 0 and 100' });
+    }
+    if (percentage === 100 && currentStage !== 'completed') {
+      return res.status(400).json({ success: false, message: '100% progress requires the Completed stage' });
+    }
+    if (currentStage === 'completed' && percentage !== 100) {
+      return res.status(400).json({ success: false, message: 'Completed stage requires 100% progress.' });
     }
     if (trimmedDescription.length < 20) {
       return res.status(400).json({ success: false, message: 'Please describe the work completed for the selected stage. Minimum 20 characters required.' });
