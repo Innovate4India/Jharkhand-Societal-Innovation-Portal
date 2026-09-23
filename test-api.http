@@ -1,0 +1,142 @@
+### Register Citizen
+POST http://localhost:5000/api/auth/register
+Content-Type: application/json
+
+{
+  "name": "Test Citizen",
+  "email": "citizen@test.com",
+  "password": "Test@12345",
+  "role": "citizen",
+  "mobile": "9876543210",
+  "district": "Haridwar",
+  "villageOrCity": "Test City"
+}
+
+### Login Citizen
+POST http://localhost:5000/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "citizen@test.com",
+  "password": "Test@12345"
+}
+
+
+### Get Current User
+GET http://localhost:5000/api/auth/me
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhOTkwMGQ3OGQ4NDc5MzI2NzVmYzFlZiIsInJvbGUiOiJjaXRpemVuIiwiaWF0IjoxNzg4NDEyMzM4LCJleHAiOjE3ODkwMTcxMzh9.9SpxW132H9g9kuZTa6qnAoADCmXKi4JC8-ae1OGcYUQ
+
+### Create Community Challenge
+POST http://localhost:5000/api/challenges
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhOTkwMGQ3OGQ4NDc5MzI2NzVmYzFlZiIsInJvbGUiOiJjaXRpemVuIiwiaWF0IjoxNzg4NDEyMzM4LCJleHAiOjE3ODkwMTcxMzh9.9SpxW132H9g9kuZTa6qnAoADCmXKi4JC8-ae1OGcYUQ
+
+{
+  "title": "Lack of clean drinking water",
+  "description": "People in the village are facing difficulty getting clean drinking water during summer.",
+  "category": "Water",
+  "district": "Haridwar",
+  "villageOrCity": "Test Village",
+  "location": {
+    "latitude": 29.9457,
+    "longitude": 78.1642
+  }
+}
+
+### Get All Challenges
+GET http://localhost:5000/api/challenges
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhOTkwMGQ3OGQ4NDc5MzI2NzVmYzFlZiIsInJvbGUiOiJjaXRpemVuIiwiaWF0IjoxNzg4NDEyMzM4LCJleHAiOjE3ODkwMTcxMzh9.9SpxW132H9g9kuZTa6qnAoADCmXKi4JC8-ae1OGcYUQ
+
+### Register Government
+POST http://localhost:5000/api/auth/register
+Content-Type: application/json
+
+{
+  "name": "Test Government Officer",
+  "email": "government@test.com",
+  "password": "Test@12345",
+  "role": "government",
+  "department": "Rural Development",
+  "designation": "District Officer",
+  "district": "Haridwar"
+}
+
+### Government Login
+POST http://localhost:5000/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "government@test.com",
+  "password": "Test@12345"
+}
+
+### Government Update Challenge Status
+PATCH http://localhost:5000/api/challenges/6a9902d08d847932675fc1f4/status
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhOTkwM2E2OGQ4NDc5MzI2NzVmYzFmYSIsInJvbGUiOiJnb3Zlcm5tZW50IiwiaWF0IjoxNzg4NDEyODgwLCJleHAiOjE3ODkwMTc2ODB9.98vuLRaGpBse3mwABaSdNARyys7BJs2QNLcPr6e-qP0
+
+{
+  "status": "under_review"
+}
+
+### Register University
+POST http://localhost:5000/api/auth/register
+Content-Type: application/json
+
+{
+  "name": "Test University Researcher",
+  "email": "university@test.com",
+  "password": "Test@12345",
+  "role": "university",
+  "institution": "Test University",
+  "universityDepartment": "Civil Engineering",
+  "accountType": "faculty"
+}
+
+### Assign Challenge to University
+PATCH http://localhost:5000/api/challenges/6a9902d08d847932675fc1f4/assign
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhOTkwM2E2OGQ4NDc5MzI2NzVmYzFmYSIsInJvbGUiOiJnb3Zlcm5tZW50IiwiaWF0IjoxNzg4NDEzNDgyLCJleHAiOjE3ODkwMTgyODJ9.ZgmF7WWDaQuJYtDv5iy9nQh_bnuIkA6QIPYqLOwuIrg
+
+{
+  "assignedUniversity": "6a9905c28d847932675fc203"
+}
+
+### University Login
+POST http://localhost:5000/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "university@test.com",
+  "password": "Test@12345"
+}
+
+### University Gets Assigned Challenge
+GET http://localhost:5000/api/challenges/6a9902d08d847932675fc1f4
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhOTkwNWMyOGQ4NDc5MzI2NzVmYzIwMyIsInJvbGUiOiJ1bml2ZXJzaXR5IiwiaWF0IjoxNzg4NDEzNjE5LCJleHAiOjE3ODkwMTg0MTl9.KPZFoXbjx_t7Gumq8stK7O5LxNYSN5k5RW9IOrL4Hcw
+
+
+### Create Project Proposal
+POST http://localhost:5000/api/projects
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhOTkwNWMyOGQ4NDc5MzI2NzVmYzIwMyIsInJvbGUiOiJ1bml2ZXJzaXR5IiwiaWF0IjoxNzg4NDEzNjE5LCJleHAiOjE3ODkwMTg0MTl9.KPZFoXbjx_t7Gumq8stK7O5LxNYSN5k5RW9IOrL4Hcw
+
+{
+  "title": "Clean Drinking Water Solution",
+  "description": "Develop a low-cost and sustainable drinking water purification system for the village.",
+  "challenge": "6a9902d08d847932675fc1f4",
+  "projectType": "multidisciplinary_project",
+  "universityDepartment": "Civil Engineering",
+  "solutionSummary": "Design and test a low-cost water purification and filtration system.",
+  "objectives": [
+    "Improve access to clean drinking water",
+    "Develop an affordable purification system",
+    "Test the solution in the local community"
+  ],
+  "expectedImpact": "Improved access to safe drinking water for the local community.",
+  "estimatedBudget": 100000,
+  "timeline": {
+    "startDate": "2026-09-10",
+    "expectedCompletionDate": "2027-03-10"
+  }
+}
