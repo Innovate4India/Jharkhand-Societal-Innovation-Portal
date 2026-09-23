@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { BookOpen, CheckCircle2, ClipboardList, FolderKanban, Search, Users, X } from 'lucide-react'
 import {
   assignChallengeMentor, downloadChallengeAttachment, getChallenges, getDepartmentChallengeMentors, getDepartmentMembers, getProjects,
-  createProject, getSolutionRecommendations, updateProjectProgress, updateProjectSolution, updateProjectTeam,
+  createProject, getProjectById, getSolutionRecommendations, updateProjectProgress, updateProjectSolution, updateProjectTeam,
 } from '@/lib/api'
 
 export type DepartmentSection = 'problems' | 'project' | 'progress' | 'library' | 'profile'
@@ -126,6 +126,10 @@ export default function DepartmentDashboard({ user, section = 'problems', onSect
   const parsedProgressPercentage = Number(progressPercentage)
   const isProgressPercentageValid = /^\d+$/.test(progressPercentage) && Number.isInteger(parsedProgressPercentage) && parsedProgressPercentage >= 0 && parsedProgressPercentage <= 100
   const progressDescriptionLength = progressForm.progressDescription.trim().length
+  const descriptionWords = progressForm.progressDescription.trim().match(/[a-z0-9]+/gi) || []
+  const hasMeaningfulDescription = descriptionWords.length >= 3
+    && new Set(descriptionWords.map((word) => word.toLowerCase())).size >= 3
+    && !/^(done|ok|completed|g+)([\s.!]*)$/i.test(progressForm.progressDescription.trim())
   const isCompletedDescriptionValid = progressForm.currentStage !== 'completed' || /\b(complet|implement|result|outcome|solution|deplo|test)\w*/i.test(progressForm.progressDescription)
 
   async function saveTeam() {
@@ -213,7 +217,7 @@ export default function DepartmentDashboard({ user, section = 'problems', onSect
       setNoticeTone('error'); setNotice('Select at least one Student and one Researcher before updating project progress.')
       return
     }
-    if (!description || description.length < 20 || !isCompletedDescriptionValid) {
+    if (!description || description.length < 20 || !hasMeaningfulDescription || !isCompletedDescriptionValid) {
       setNoticeTone('error'); setNotice('Please describe the work completed for the selected stage. Minimum 20 characters required.')
       return
     }
@@ -229,15 +233,22 @@ export default function DepartmentDashboard({ user, section = 'problems', onSect
     setBusy(false)
   }
 
-  function openProgress(project: Project) {
-    const currentStage = stageLabels.includes(project.currentStage || '') ? project.currentStage || 'proposed' : 'proposed'
-    const currentUpdate = project.progressUpdates?.find((update) => update.stage === currentStage)
-    setProgressProject(project)
-    setProgressPercentage(String(project.progressPercentage ?? 0))
+  async function openProgress(project: Project) {
+    const response = await getProjectById(project._id)
+    if (!response.success || !response.data) {
+      setNoticeTone('error')
+      setNotice(response.message || 'Unable to load the latest project data.')
+      return
+    }
+    const latestProject = response.data
+    const currentStage = stageLabels.includes(latestProject.currentStage || '') ? latestProject.currentStage || 'proposed' : 'proposed'
+    const currentUpdate = latestProject.progressUpdates?.find((update) => update.stage === currentStage)
+    setProgressProject(latestProject)
+    setProgressPercentage(String(latestProject.progressPercentage ?? 0))
     setProgressForm({
       currentStage,
-      progressDescription: currentUpdate?.description || project.completedWork || '',
-      progressDescriptions: Object.fromEntries((project.progressUpdates || []).map((update) => [update.stage, update.description])),
+      progressDescription: currentUpdate?.description || latestProject.completedWork || '',
+      progressDescriptions: Object.fromEntries((latestProject.progressUpdates || []).map((update) => [update.stage, update.description])),
     })
   }
 

@@ -478,9 +478,9 @@ export async function getProjects() {
     progressPercentage?: number;
     currentStage?: string;
     completedWork?: string;
+    progressUpdates?: { stage: string; percentage: number; description: string; updatedBy?: string; updatedAt?: string }[];
     remainingWork?: string;
     nextTask?: string;
-    progressUpdates?: { stage: string; percentage: number; description: string; updatedBy?: string; updatedAt?: string }[];
     assignmentStatus?: 'unassigned' | 'pending' | 'awaiting_acceptance' | 'accepted';
     acceptedByUniversity?: { _id?: string; name?: string; email?: string };
     acceptedAt?: string;
@@ -542,6 +542,10 @@ export async function getProjectById(id: string) {
     universityDepartment?: string;
     projectType: string;
     status: string;
+    progressPercentage?: number;
+    currentStage?: string;
+    completedWork?: string;
+    progressUpdates?: { stage: string; percentage: number; description: string; updatedBy?: string; updatedAt?: string }[];
     solutionSummary?: string;
     expectedImpact?: string;
     estimatedBudget?: number;

@@ -309,7 +309,7 @@ export const getAllProjects = async (req, res, next) => {
         { path: 'createdBy', select: 'name email institution universityDepartment' },
         { path: 'university', select: 'name email institution universityDepartment' },
         { path: 'challenge', select: 'title category district status' },
-        { path: 'teamMembers', select: 'name email institution universityDepartment' },
+        { path: 'teamMembers', select: 'name email institution universityDepartment accountType' },
         { path: 'facultyMentor', select: 'name email institution universityDepartment accountType' },
         { path: 'industryPartners', select: 'name email organizationName organizationType' }
       ])
@@ -575,11 +575,12 @@ export const updateProjectProgress = async (req, res, next) => {
     if (currentStage === 'completed' && percentage !== 100) {
       return res.status(400).json({ success: false, message: 'Completed stage requires 100% progress.' });
     }
-    if (trimmedDescription.length < 20) {
+    const descriptionWords = trimmedDescription.match(/[a-z0-9]+/gi) || [];
+    const hasMeaningfulDescription = descriptionWords.length >= 3
+      && new Set(descriptionWords.map((word) => word.toLowerCase())).size >= 3
+      && !/^(done|ok|completed|g+)([\s.!]*)$/i.test(trimmedDescription);
+    if (trimmedDescription.length < 20 || !hasMeaningfulDescription) {
       return res.status(400).json({ success: false, message: 'Please describe the work completed for the selected stage. Minimum 20 characters required.' });
-    }
-    if (/^(done|ok|completed|g+)([\s.!]*)$/i.test(trimmedDescription)) {
-      return res.status(400).json({ success: false, message: 'Please provide a meaningful description of the work completed.' });
     }
     if (currentStage === 'completed' && !/\b(complet|implement|result|outcome|solution|deplo|test)\w*/i.test(trimmedDescription)) {
       return res.status(400).json({ success: false, message: 'Completed progress must describe what was completed, the implemented solution, and the result.' });
