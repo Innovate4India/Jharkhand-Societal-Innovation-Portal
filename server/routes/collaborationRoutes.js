@@ -1,5 +1,6 @@
 import express from 'express';
 import authMiddleware from '../middleware/authMiddleware.js';
+import { authorizeRoles } from '../middleware/roleMiddleware.js';
 import {
   createCollaboration,
   getCollaborations,
@@ -14,7 +15,7 @@ const router = express.Router();
 router.use(authMiddleware);
 
 // Create a new collaboration proposal (industry only)
-router.post('/', createCollaboration);
+router.post('/', authorizeRoles('industry'), createCollaboration);
 
 // Get collaborations (role-based filtering)
 router.get('/', getCollaborations);

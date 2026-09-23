@@ -11,6 +11,13 @@ import collaborationRoutes from './routes/collaborationRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import sahayakRoutes from './routes/sahayakRoutes.js';
 import dashboardRoutes from './routes/dashboardRoutes.js';
+import industryRoutes from './routes/industryRoutes.js';
+import clubRoutes from './routes/clubRoutes.js';
+import aiRoutes from './routes/aiRoutes.js';
+import locationRoutes from './routes/locationRoutes.js';
+import rewardRoutes from './routes/rewardRoutes.js';
+import searchRoutes from './routes/searchRoutes.js';
+import notificationRoutes from './routes/notificationRoutes.js';
 
 // Load environment variables
 dotenv.config();
@@ -49,7 +56,14 @@ app.use('/api/projects', projectRoutes);
 app.use('/api/collaborations', collaborationRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/sahayak', sahayakRoutes);
+app.use('/api/ai', aiRoutes);
+app.use('/api/location', locationRoutes);
+app.use('/api/rewards', rewardRoutes);
+app.use('/api/search', searchRoutes);
+app.use('/api/notifications', notificationRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/industry', industryRoutes);
+app.use('/api/clubs', clubRoutes);
 
 // 404 Middleware
 app.use(notFound);

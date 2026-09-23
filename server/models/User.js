@@ -25,8 +25,8 @@ const userSchema = new mongoose.Schema(
     role: {
       type: String,
       enum: {
-        values: ['citizen', 'government', 'university'],
-        message: 'Role must be one of: citizen, government, university'
+        values: ['citizen', 'government', 'university', 'industry'],
+        message: 'Role must be one of: citizen, government, university, industry'
       },
       required: [true, 'Role is required']
     },
@@ -39,6 +39,22 @@ const userSchema = new mongoose.Schema(
     district: {
       type: String,
       required: function() { return this.role === 'citizen' || this.role === 'government'; }
+    },
+    governmentDistrict: {
+      type: String,
+      trim: true,
+      required: function() { return this.role === 'government'; }
+    },
+    impactTokens: { type: Number, min: 0, default: 0 },
+    lifetimeImpactTokens: { type: Number, min: 0, default: 0 },
+    totalVerifiedProblems: { type: Number, min: 0, default: 0 },
+    totalRewardsRedeemed: { type: Number, min: 0, default: 0 },
+    totalRewardAmountRedeemed: { type: Number, min: 0, default: 0 },
+    virtualCashBalance: {
+      type: Number,
+      min: 0,
+      default: 0,
+      validate: { validator: Number.isInteger, message: 'Virtual cash balance must be a whole number' }
     },
     villageOrCity: {
       type: String,
@@ -62,14 +78,35 @@ const userSchema = new mongoose.Schema(
     },
     universityDepartment: {
       type: String,
-      required: function() { return this.role === 'university'; }
+      trim: true
+    },
+    primaryClub: {
+      type: String,
+      enum: ['NCC', 'NSS', 'Rovers & Rangers', 'Red Ribbon Club', 'Eco Club', 'Innovation & Entrepreneurship Club'],
+      default: null
+    },
+    clubRole: {
+      type: String,
+      enum: ['member', 'coordinator'],
+      default: 'member'
+    },
+    clubCoordinatorClub: {
+      type: String,
+      enum: ['NCC', 'NSS', 'Rovers & Rangers', 'Red Ribbon Club', 'Eco Club', 'Innovation & Entrepreneurship Club'],
+      default: null
     },
     accountType: {
       type: String,
       enum: {
-        values: ['student', 'faculty', 'researcher'],
-        message: 'accountType must be one of: student, faculty, researcher'
+        values: ['student', 'faculty', 'researcher', 'coordinator'],
+        message: 'accountType must be one of: student, faculty, researcher, coordinator'
       },
+      required: false
+    },
+    universityRole: {
+      type: String,
+      enum: ['member', 'innovation_coordinator'],
+      default: 'member',
       required: function() { return this.role === 'university'; }
     },
 

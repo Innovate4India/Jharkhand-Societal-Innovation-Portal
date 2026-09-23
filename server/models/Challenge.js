@@ -41,7 +41,8 @@ const challengeSchema = new mongoose.Schema(
     },
     villageOrCity: {
       type: String,
-      required: [true, 'Village or City is required']
+      trim: true,
+      default: ''
     },
     location: {
       latitude: {
@@ -80,6 +81,7 @@ const challengeSchema = new mongoose.Schema(
           'cancelled',
           'in_progress',
           'resolved',
+          'completed',
           'rejected'
         ],
         message: 'Status must be one of the predefined values'
@@ -95,6 +97,35 @@ const challengeSchema = new mongoose.Schema(
         message: 'Priority must be one of: low, medium, high, critical'
       },
       default: 'medium'
+    },
+    urgency: {
+      type: String,
+      enum: ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'],
+      default: 'MEDIUM'
+    },
+    urgencySource: {
+      type: String,
+      enum: ['ai_detected', 'manually_adjusted', 'fallback'],
+      default: 'fallback'
+    },
+    urgencyReason: {
+      type: String,
+      trim: true,
+      default: ''
+    },
+    rewardProcessed: {
+      type: Boolean,
+      default: false
+    },
+    affected: {
+      type: String,
+      trim: true,
+      default: ''
+    },
+    expectedImpact: {
+      type: String,
+      trim: true,
+      default: ''
     },
 
     // Media attachments
@@ -195,6 +226,34 @@ const challengeSchema = new mongoose.Schema(
       type: Date,
       default: null
     },
+    department: {
+      type: String,
+      trim: true,
+      default: null
+    },
+    departmentAssignedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null
+    },
+    departmentAssignedAt: {
+      type: Date,
+      default: null
+    },
+    departmentMentor: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null
+    },
+    departmentMentorAssignedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null
+    },
+    departmentMentorAssignedAt: {
+      type: Date,
+      default: null
+    },
     cancelledBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
@@ -210,7 +269,7 @@ const challengeSchema = new mongoose.Schema(
       default: null
     },
 
-    // Government funding approval
+    // Legacy funding fields retained for compatibility; new funding is Industry sponsorship.
     fundingAmount: {
       type: Number,
       default: 0,
@@ -232,7 +291,33 @@ const challengeSchema = new mongoose.Schema(
     fundingApprovedAt: {
       type: Date,
       default: null
-    }
+    },
+    industryFundingStatus: {
+      type: String,
+      enum: [
+        'not_eligible',
+        'proposal_pending',
+        'proposal_accepted',
+        'proposal_rejected',
+        'funded',
+        'pending',
+        'eligible',
+        'funded_pending_university_acceptance',
+        'accepted',
+        'rejected',
+        'not_required'
+      ],
+      default: 'not_eligible'
+    },
+    industryFundedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    industryFundingAmount: { type: Number, min: 0, default: null },
+    industryFundingAt: { type: Date, default: null },
+    industryFundingAcceptedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    industryFundingAcceptedAt: { type: Date, default: null },
+    industryFundingContactPerson: { type: String, trim: true, default: '' },
+    industryFundingContactEmail: { type: String, trim: true, default: '' },
+    industryFundingContactPhone: { type: String, trim: true, default: '' },
+    industryFundingMessage: { type: String, trim: true, default: '' }
   },
   {
     timestamps: true

@@ -6,6 +6,45 @@ interface ApiResponse<T> {
   data?: T;
 }
 
+export async function assignChallengeDepartment(challengeId: string, department: string) {
+  return apiCall(`/api/challenges/${encodeURIComponent(challengeId)}/department`, {
+    method: 'PATCH',
+    body: JSON.stringify({ department }),
+  });
+}
+
+export async function getDepartmentMentors(challengeId: string) {
+  return apiCall<Array<{
+    _id: string;
+    name: string;
+    email?: string;
+    institution?: string;
+    universityDepartment?: string;
+    accountType?: string;
+    primaryClub?: string | null;
+  }>>(`/api/challenges/${encodeURIComponent(challengeId)}/department-mentors`, {
+    method: 'GET',
+  });
+}
+
+export async function assignChallengeMentor(challengeId: string, departmentMentor: string) {
+  return apiCall(`/api/challenges/${encodeURIComponent(challengeId)}/department-mentor`, {
+    method: 'PATCH',
+    body: JSON.stringify({ departmentMentor }),
+  });
+}
+
+export async function getDepartmentChallengeMentors(challengeId: string) {
+  return apiCall<Array<{
+    _id: string;
+    name: string;
+    email?: string;
+    institution?: string;
+    universityDepartment?: string;
+    accountType?: string;
+  }>>(`/api/challenges/${encodeURIComponent(challengeId)}/department-mentors`, { method: 'GET' });
+}
+
 const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/$/, '');
 
 function resolveApiUrl(endpoint: string) {
@@ -53,7 +92,7 @@ export async function apiCall<T>(
   }
 }
 
-export async function login(email: string, password: string) {
+export async function login(email: string, password: string, coordinator?: { institution: string; code: string }) {
   return apiCall<{
     token: string;
     user: {
@@ -61,13 +100,22 @@ export async function login(email: string, password: string) {
       name: string;
       email: string;
       role: string;
+      district?: string;
+      governmentDistrict?: string;
+      universityRole?: 'member' | 'innovation_coordinator';
+      clubRole?: 'member' | 'coordinator';
+      clubCoordinatorClub?: string | null;
       institution?: string;
       universityDepartment?: string;
       accountType?: string;
+      primaryClub?: string | null;
+      universityRole?: 'member' | 'innovation_coordinator';
+      clubRole?: 'member' | 'coordinator';
+      clubCoordinatorClub?: string | null;
     };
   }>('/api/auth/login', {
     method: 'POST',
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ email, password, institution: coordinator?.institution, coordinatorCode: coordinator?.code }),
   });
 }
 
@@ -79,10 +127,23 @@ export async function register(userData: Record<string, any>) {
       name: string;
       email: string;
       role: string;
+      district?: string;
+      governmentDistrict?: string;
     };
   }>('/api/auth/register', {
     method: 'POST',
     body: JSON.stringify(userData),
+  });
+}
+
+export async function getUniversityInstitutions() {
+  return apiCall<string[]>('/api/auth/universities', { method: 'GET' });
+}
+
+export async function generateUniversityCoordinatorCode(institution: string) {
+  return apiCall<{ institution: string; code: string }>('/api/auth/university-coordinator/generate-code', {
+    method: 'POST',
+    body: JSON.stringify({ institution }),
   });
 }
 
@@ -93,10 +154,51 @@ export async function getCurrentUser() {
       name: string;
       email: string;
       role: string;
+      institution?: string;
+      universityDepartment?: string;
+      accountType?: string;
+      primaryClub?: string | null;
+      universityRole?: 'member' | 'innovation_coordinator';
     };
   }>('/api/auth/me', {
     method: 'GET',
   });
+}
+
+export async function updateUniversityProfile(department: string, accountType: 'student' | 'researcher', primaryClub: string) {
+  return apiCall<{ user: {
+    _id: string;
+    name: string;
+    email: string;
+    role: string;
+    institution?: string;
+    universityDepartment?: string;
+    accountType?: string;
+    universityRole?: 'member' | 'innovation_coordinator';
+  } }>('/api/auth/university-profile', {
+    method: 'PATCH',
+    body: JSON.stringify({ department, accountType, primaryClub }),
+  });
+}
+
+export async function getClubActivities(club: string) {
+  return apiCall<Array<{ _id: string; title: string; description: string; club: string; date: string; status: 'upcoming' | 'completed'; participants?: { _id?: string; name?: string }[]; createdBy?: { name?: string } }>>(`/api/clubs/${encodeURIComponent(club)}/activities`, { method: 'GET' });
+}
+
+export async function getClubMembers(club: string) {
+  return apiCall<Array<{ _id: string; name: string; email?: string; universityDepartment?: string; accountType?: string; clubRole?: string }>>(`/api/clubs/${encodeURIComponent(club)}/members`, { method: 'GET' });
+}
+
+export async function createClubActivity(club: string, data: { title: string; description: string; date: string }) {
+  return apiCall(`/api/clubs/${encodeURIComponent(club)}/activities`, { method: 'POST', body: JSON.stringify(data) });
+}
+
+export async function updateClubActivity(club: string, activityId: string, data: { title?: string; description?: string; date?: string; status?: 'upcoming' | 'completed' }) {
+  return apiCall(`/api/clubs/${encodeURIComponent(club)}/activities/${encodeURIComponent(activityId)}`, { method: 'PATCH', body: JSON.stringify(data) });
+}
+
+export async function registerForClubActivity(club: string, activityId: string) {
+  return apiCall(`/api/clubs/${encodeURIComponent(club)}/activities/${encodeURIComponent(activityId)}/register`, { method: 'POST', body: JSON.stringify({}) });
 }
 
 export async function chatWithSahayak(problem: string, language: 'en' | 'hi' = 'en') {
@@ -119,6 +221,125 @@ export async function chatWithSahayak(problem: string, language: 'en' | 'hi' = '
   });
 }
 
+export async function detectUrgency(details: {
+  title: string;
+  description: string;
+  category: string;
+  affected: string;
+  expectedImpact: string;
+  location: string;
+}) {
+  return apiCall<{
+    urgency: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+    reason: string;
+    confidence: number;
+  }>('/api/ai/detect-urgency', {
+    method: 'POST',
+    body: JSON.stringify(details),
+  });
+}
+
+export type PortalSearchResult = {
+  type: string;
+  id: string;
+  title: string;
+  description: string;
+  status: string;
+  href: string;
+};
+
+export type PortalNotification = {
+  _id: string;
+  title: string;
+  message: string;
+  read: boolean;
+  createdAt: string;
+  relatedEntityType?: string | null;
+  relatedEntityId?: string | null;
+};
+
+export async function searchPortal(query: string) {
+  return apiCall<PortalSearchResult[]>(`/api/search?q=${encodeURIComponent(query)}`, { method: 'GET' });
+}
+
+export async function getNotifications() {
+  return apiCall<{ notifications: PortalNotification[]; unreadCount: number }>('/api/notifications?page=1&limit=20', { method: 'GET' });
+}
+
+export async function markNotificationRead(id: string) {
+  return apiCall<PortalNotification>(`/api/notifications/${encodeURIComponent(id)}/read`, { method: 'PATCH' });
+}
+
+export async function markAllNotificationsRead() {
+  return apiCall('/api/notifications/read-all', { method: 'PATCH' });
+}
+
+export async function getSolutionRecommendations(challengeId: string) {
+  return apiCall<{
+    recommendations: {
+      solutionId: string;
+      reason: string;
+      relevantAspects: string[];
+      solution: {
+        _id: string;
+        title: string;
+        solutionTitle?: string;
+        solutionDescription?: string;
+        solutionApproach?: string;
+        technology?: string;
+        implementationDetails?: string;
+        expectedOutcome?: string;
+        universityDepartment?: string;
+        challenge?: { title?: string; description?: string; category?: string; status?: string; district?: string };
+      };
+    }[];
+  }>('/api/ai/solution-recommendations', {
+    method: 'POST',
+    body: JSON.stringify({ challengeId }),
+  });
+}
+
+export async function reverseGeocode(latitude: number, longitude: number) {
+  return apiCall<{
+    displayName: string;
+    village: string;
+    ward: string;
+    town: string;
+    city: string;
+    district: string;
+    state: string;
+    country: string;
+  }>(`/api/location/reverse-geocode?lat=${encodeURIComponent(latitude)}&lon=${encodeURIComponent(longitude)}`, {
+    method: 'GET',
+  });
+}
+
+export async function getMyRewards() {
+  return apiCall<{
+    summary: {
+      impactTokens: number;
+      lifetimeImpactTokens: number;
+      totalVerifiedProblems: number;
+      totalRewardsRedeemed: number;
+      totalRewardAmountRedeemed: number;
+      virtualCashBalance: number;
+      redeemableBlocks: number;
+      rewardAmount: number;
+      nextRewardTokens: number;
+    };
+    history: Array<{
+      tokensRedeemed: number;
+      rewardAmount: number;
+      status: string;
+      redeemedAt: string;
+    }>;
+  }>('/api/rewards/me', { method: 'GET' });
+}
+
+export async function redeemMyReward() {
+  return apiCall('/api/rewards/redeem', { method: 'POST', body: JSON.stringify({}) });
+}
+
 export async function getChallenges() {
   return apiCall<Array<{
     _id: string;
@@ -129,6 +350,11 @@ export async function getChallenges() {
     villageOrCity: string;
     status: string;
     assignmentStatus?: 'unassigned' | 'pending' | 'awaiting_acceptance' | 'accepted';
+    department?: string | null;
+    departmentAssignedAt?: string | null;
+    departmentMentor?: { _id?: string; name?: string; email?: string; institution?: string; universityDepartment?: string; accountType?: string } | null;
+    departmentMentorAssignedBy?: { _id?: string; name?: string; email?: string } | null;
+    departmentMentorAssignedAt?: string | null;
     acceptedByUniversity?: { _id?: string; name?: string; email?: string };
     acceptedAt?: string;
     cancelledBy?: { _id?: string; name?: string };
@@ -138,10 +364,39 @@ export async function getChallenges() {
     fundingAmount?: number;
     fundingStatus?: 'pending' | 'approved';
     fundingApprovedAt?: string;
+    industryFundingStatus?: 'pending' | 'eligible' | 'funded_pending_university_acceptance' | 'accepted' | 'rejected' | 'not_required';
+    industryFundingAmount?: number;
+    industryFundingAt?: string;
+    industryFundedBy?: { _id?: string; name?: string; organizationName?: string; email?: string };
     createdAt?: string;
     submittedBy?: { _id?: string; name?: string; email?: string; role?: string };
+    rawStatus?: string;
     assignedUniversity?: { _id?: string; name?: string; email?: string; institution?: string; universityDepartment?: string };
+    departmentMentor?: { _id?: string; name?: string; email?: string; institution?: string; universityDepartment?: string; accountType?: string } | null;
     citizenContactNumber?: string;
+    affected?: string;
+    expectedImpact?: string;
+    solutionTitle?: string;
+    solutionDescription?: string;
+    solutionApproach?: string;
+    technology?: string;
+    implementationDetails?: string;
+    expectedOutcome?: string;
+    solutionStatus?: 'draft' | 'submitted';
+    urgency?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+    urgencySource?: 'ai_detected' | 'manually_adjusted' | 'fallback';
+    urgencyReason?: string;
+    project?: {
+      _id: string;
+      title?: string;
+      progressPercentage?: number;
+      currentStage?: string;
+      status?: string;
+      university?: { _id?: string; name?: string; institution?: string } | string;
+      universityDepartment?: string;
+      facultyMentor?: { _id?: string; name?: string; email?: string } | string;
+      teamMembers?: Array<{ _id?: string; name?: string; accountType?: string }>;
+    } | null;
     attachments?: { _id: string; originalName: string; mimeType: string; size: number; uploadedAt?: string }[];
   }>>('/api/challenges', {
     method: 'GET',
@@ -154,9 +409,9 @@ export async function getUniversities() {
     name: string;
     email?: string;
     institution?: string;
-    universityDepartment?: string;
     facultyMentor?: { _id?: string; name?: string; email?: string; universityDepartment?: string; accountType?: string };
     accountType?: string;
+    universityRole?: string;
   }>>('/api/users/universities', {
     method: 'GET',
   });
@@ -178,7 +433,7 @@ export type GovernmentAnalytics = {
   projects: { total: number; proposed: number; prototype: number; testing: number; deployed: number; completed: number };
   universities: { total: number; withAssignedChallenges: number; withActiveProjects: number };
   impact: { solutionsDeployed: number; communitiesResolved: number; studentsInvolved: number; facultyMentors: number };
-  funding: { approvedAmount: number; fundedCount: number };
+  funding: { approvedAmount: number; fundedCount: number; sponsorship?: Record<string, { count: number; amount: number }> };
 };
 
 export async function getGovernmentAnalytics() {
@@ -197,22 +452,47 @@ export async function getUniversityMembers() {
   }>>('/api/users/university-members', { method: 'GET' });
 }
 
+export async function getDepartmentMembers() {
+  return apiCall<Array<{
+    _id: string;
+    name: string;
+    email?: string;
+    institution?: string;
+    universityDepartment?: string;
+    accountType?: string;
+    primaryClub?: string | null;
+  }>>('/api/users/department-members', { method: 'GET' });
+}
+
 export async function getProjects() {
   return apiCall<Array<{
     _id: string;
     title: string;
     description: string;
-    challenge?: { _id?: string; title?: string; category?: string; district?: string; status?: string };
+    challenge?: { _id?: string; title?: string; category?: string; district?: string; status?: string; industryFundingStatus?: string; industryFundingAmount?: number; industryFundingAcceptedAt?: string };
     university?: { _id?: string; name?: string; institution?: string; universityDepartment?: string };
     universityDepartment?: string;
     facultyMentor?: { _id?: string; name?: string; accountType?: string; universityDepartment?: string };
     projectType: string;
     status: string;
+    progressPercentage?: number;
+    currentStage?: string;
+    completedWork?: string;
+    remainingWork?: string;
+    nextTask?: string;
+    progressUpdates?: { stage: string; percentage: number; description: string; updatedBy?: string; updatedAt?: string }[];
     assignmentStatus?: 'unassigned' | 'pending' | 'awaiting_acceptance' | 'accepted';
     acceptedByUniversity?: { _id?: string; name?: string; email?: string };
     acceptedAt?: string;
     solutionSummary?: string;
     expectedImpact?: string;
+    solutionTitle?: string;
+    solutionDescription?: string;
+    solutionApproach?: string;
+    technology?: string;
+    implementationDetails?: string;
+    expectedOutcome?: string;
+    solutionStatus?: 'draft' | 'submitted';
     estimatedBudget?: number;
     timeline?: { startDate?: string; expectedCompletionDate?: string };
     teamMembers?: { _id?: string; name?: string; universityDepartment?: string; accountType?: string; email?: string }[];
@@ -224,12 +504,40 @@ export async function getProjects() {
   });
 }
 
+export async function getIndustryOpportunities() {
+  return apiCall<any[]>('/api/industry/opportunities', { method: 'GET' })
+}
+
+export async function getIndustrySponsorships() {
+  return apiCall<any[]>('/api/industry/sponsorships', { method: 'GET' })
+}
+
+export async function createIndustrySponsorship(data: { project?: string; challenge?: string; amount: number; expertise?: string; notes?: string; contactPerson?: string; contactEmail?: string; contactPhone?: string }) {
+  return apiCall<any>('/api/industry/sponsorships', { method: 'POST', body: JSON.stringify(data) })
+}
+
+export async function getUniversitySponsorships() {
+  return apiCall<any[]>('/api/industry/university-sponsorships', { method: 'GET' })
+}
+
+export async function acceptUniversitySponsorship(challengeId: string) {
+  return apiCall<any>(`/api/industry/challenges/${encodeURIComponent(challengeId)}/funding/accept`, { method: 'PATCH' })
+}
+
+export async function rejectUniversitySponsorship(challengeId: string) {
+  return apiCall<any>(`/api/industry/challenges/${encodeURIComponent(challengeId)}/funding/reject`, { method: 'PATCH' })
+}
+
+export async function acceptIndustryFunding(challengeId: string) {
+  return apiCall<any>(`/api/industry/challenges/${encodeURIComponent(challengeId)}/funding/accept`, { method: 'PATCH' })
+}
+
 export async function getProjectById(id: string) {
   return apiCall<{
     _id: string;
     title: string;
     description: string;
-    challenge?: { _id?: string; title?: string; category?: string; district?: string; status?: string; description?: string };
+    challenge?: { _id?: string; title?: string; category?: string; district?: string; status?: string; description?: string; industryFundingStatus?: string; industryFundingAmount?: number; industryFundingAcceptedAt?: string };
     university?: { _id?: string; name?: string; institution?: string; universityDepartment?: string };
     universityDepartment?: string;
     projectType: string;
@@ -259,6 +567,7 @@ export async function createProject(projectData: {
   expectedImpact: string;
   estimatedBudget?: number;
   timeline: { startDate: string; expectedCompletionDate: string };
+  teamMembers?: string[];
 }) {
   return apiCall('/api/projects', {
     method: 'POST',
@@ -273,10 +582,36 @@ export async function updateProjectStatus(id: string, status: string) {
   });
 }
 
+export async function updateProjectProgress(id: string, progress: {
+  progressPercentage: number;
+  currentStage: string;
+  description: string;
+}) {
+  return apiCall(`/api/projects/${encodeURIComponent(id)}/progress`, {
+    method: 'PATCH',
+    body: JSON.stringify(progress),
+  });
+}
+
 export async function updateProjectTeam(id: string, teamMembers: string[]) {
   return apiCall(`/api/projects/${encodeURIComponent(id)}/team`, {
     method: 'PATCH',
     body: JSON.stringify({ teamMembers }),
+  });
+}
+
+export async function updateProjectSolution(id: string, solution: {
+  solutionTitle?: string;
+  solutionDescription?: string;
+  solutionApproach?: string;
+  technology?: string;
+  implementationDetails?: string;
+  expectedOutcome?: string;
+  solutionStatus?: 'draft' | 'submitted';
+}) {
+  return apiCall(`/api/projects/${encodeURIComponent(id)}/solution`, {
+    method: 'PATCH',
+    body: JSON.stringify(solution),
   });
 }
 
@@ -345,13 +680,6 @@ export async function assignChallenge(id: string, assignedUniversity: string) {
   return apiCall(`/api/challenges/${encodeURIComponent(id)}/assign`, {
     method: 'PATCH',
     body: JSON.stringify({ assignedUniversity }),
-  });
-}
-
-export async function approveChallengeFunding(id: string, fundingAmount: number) {
-  return apiCall(`/api/challenges/${encodeURIComponent(id)}/funding`, {
-    method: 'PATCH',
-    body: JSON.stringify({ fundingAmount }),
   });
 }
 

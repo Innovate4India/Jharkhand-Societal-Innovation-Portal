@@ -126,7 +126,12 @@ export const getCollaborations = async (req, res, next) => {
       const projectIds = userProjects.map(p => p._id);
       filter.project = { $in: projectIds };
     }
-    // Government users see all collaborations (no additional filter)
+    else if (user.role === 'government') {
+      // Government monitors collaboration metadata, but citizens never reach this branch.
+      filter = {};
+    } else {
+      return res.status(403).json({ success: false, message: 'This role cannot access collaboration records' });
+    }
 
     // Apply additional filters
     if (projectId) {

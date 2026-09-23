@@ -3,13 +3,14 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { CheckCircle2, Eye, EyeOff, Sparkles } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import ThemeToggle from '@/components/theme-toggle'
-import { login, register, saveAuthToken, saveCurrentUser } from '@/lib/api'
+import { generateUniversityCoordinatorCode, getUniversityInstitutions, login, register, saveAuthToken, saveCurrentUser } from '@/lib/api'
+import { UNIVERSITY_DEPARTMENTS } from '@/lib/university-departments'
 
-type Role = 'Citizen' | 'Government' | 'University'
-const roles: Role[] = ['Citizen', 'Government', 'University']
-const districts = ['Ranchi', 'Dhanbad', 'Bokaro', 'Deoghar', 'East Singhbhum', 'Hazaribagh']
+type Role = 'Citizen' | 'Government' | 'University' | 'Industry'
+const roles: Role[] = ['Citizen', 'Government', 'University', 'Industry']
+const districts = ['Bokaro', 'Chatra', 'Deoghar', 'Dhanbad', 'Dumka', 'East Singhbhum', 'Garhwa', 'Giridih', 'Godda', 'Gumla', 'Hazaribagh', 'Jamtara', 'Khunti', 'Koderma', 'Latehar', 'Lohardaga', 'Pakur', 'Palamu', 'Ramgarh', 'Ranchi', 'Sahibganj', 'Seraikela-Kharsawan', 'Simdega', 'West Singhbhum']
 
 function Field({ label, name, type = 'text', placeholder, required = true }: { label: string; name: string; type?: string; placeholder?: string; required?: boolean }) {
   return <label className="block"><span className="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-200">{label}{required && <span className="text-orange-600"> *</span>}</span><input name={name} required={required} type={type} placeholder={placeholder} className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/15 dark:border-slate-700 dark:bg-slate-900 dark:text-white" /></label>
@@ -38,6 +39,13 @@ export function LoginForm() {
   const [error, setError] = useState('')
   const [roleNotice, setRoleNotice] = useState('')
   const [loading, setLoading] = useState(false)
+  const [loginAccountType, setLoginAccountType] = useState('')
+  const [universities, setUniversities] = useState<string[]>([])
+  useEffect(() => {
+    void getUniversityInstitutions().then((response) => {
+      if (response.success) setUniversities(response.data || [])
+    })
+  }, [])
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -52,7 +60,13 @@ export function LoginForm() {
       setLoading(false)
       return
     }
-    const response = await login(email, password)
+    const response = await login(
+      email,
+      password,
+      selectedRole === 'University' && loginAccountType === 'coordinator'
+        ? { institution: String(formData.get('institution') || ''), code: String(formData.get('coordinatorCode') || '') }
+        : undefined,
+    )
     if (!response.success) {
       setError(response.message || 'Login failed')
       setLoading(false)
@@ -61,12 +75,12 @@ export function LoginForm() {
     if (response.data?.token) saveAuthToken(response.data.token)
     if (response.data?.user) saveCurrentUser(response.data.user)
     const userRole = response.data?.user?.role
-    const backendRole = userRole === 'government' ? 'Government' : userRole === 'university' ? 'University' : 'Citizen'
+    const backendRole = userRole === 'government' ? 'Government' : userRole === 'university' ? 'University' : userRole === 'industry' ? 'Industry' : 'Citizen'
     if (backendRole !== selectedRole) setRoleNotice(`Your account is registered as ${backendRole}. You have been redirected to the ${backendRole} dashboard.`)
     window.setTimeout(() => router.push('/'), 700)
   }
 
-  return <AuthFrame title="Welcome back" subtitle="Sign in to continue your work for Jharkhand."><form onSubmit={submit} className="space-y-5"><Field name="email" label="Email" type="email" placeholder="you@example.com" /><PasswordField name="password" label="Password" /><RoleSelect label="Login as" role={selectedRole} setRole={setSelectedRole} /><div className="flex items-center justify-between text-sm"><label className="flex items-center gap-2 text-slate-500"><input type="checkbox" className="accent-emerald-700" />Remember me</label><button type="button" onClick={() => setError('Password reset will be available in a future release.')} className="font-semibold text-emerald-800">Forgot password?</button></div>{error && <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">{error}</p>}{roleNotice && <p className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">{roleNotice}</p>}<button disabled={loading} className="h-11 w-full rounded-lg bg-emerald-800 text-sm font-bold text-white transition hover:bg-emerald-900 disabled:opacity-70">{loading ? 'Logging in...' : 'Login'}</button><p className="text-center text-sm text-slate-500">Don't have an account? <Link href="/register" className="font-bold text-emerald-800">Create Account</Link></p></form></AuthFrame>
+  return <AuthFrame title="Welcome back" subtitle="Sign in to continue your work for Jharkhand."><form onSubmit={submit} className="space-y-5"><Field name="email" label="Email" type="email" placeholder="you@example.com" /><PasswordField name="password" label="Password" /><RoleSelect label="Login as" role={selectedRole} setRole={setSelectedRole} />{selectedRole === 'University' && <><label className="block"><span className="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-200">University account type</span><select name="loginAccountType" value={loginAccountType} onChange={event => setLoginAccountType(event.target.value)} className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3.5 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white"><option value="">Student / Faculty / Researcher</option><option value="coordinator">University Coordinator</option></select></label>{loginAccountType === 'coordinator' && <><label className="block"><span className="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-200">University / Institution</span><select name="institution" required className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3.5 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white"><option value="">Select your University</option>{universities.map(university => <option key={university}>{university}</option>)}</select></label><Field name="coordinatorCode" label="Coordinator Authorization Code" type="password" placeholder="Enter your University code" /></>}<p className="text-xs leading-5 text-slate-500">Coordinator permissions are verified by the backend for the selected University.</p></>}<div className="flex items-center justify-between text-sm"><label className="flex items-center gap-2 text-slate-500"><input type="checkbox" className="accent-emerald-700" />Remember me</label><button type="button" onClick={() => setError('Password reset will be available in a future release.')} className="font-semibold text-emerald-800">Forgot password?</button></div>{error && <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">{error}</p>}{roleNotice && <p className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">{roleNotice}</p>}<button disabled={loading} className="h-11 w-full rounded-lg bg-emerald-800 text-sm font-bold text-white transition hover:bg-emerald-900 disabled:opacity-70">{loading ? 'Logging in...' : 'Login'}</button><p className="text-center text-sm text-slate-500">Don't have an account? <Link href="/register" className="font-bold text-emerald-800">Create Account</Link></p></form></AuthFrame>
 }
 
 export function RegisterForm() {
@@ -75,6 +89,33 @@ export function RegisterForm() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
+  const [universityAccountType, setUniversityAccountType] = useState('')
+  const [universities, setUniversities] = useState<string[]>([])
+  const [generatedCoordinatorCode, setGeneratedCoordinatorCode] = useState('')
+
+  useEffect(() => {
+    void getUniversityInstitutions().then((response) => {
+      if (response.success) setUniversities(response.data || [])
+    })
+  }, [])
+
+  async function generateCode(event: React.MouseEvent<HTMLButtonElement>) {
+    event.preventDefault()
+    setError('')
+    const institution = String(new FormData(event.currentTarget.form || undefined).get('institution') || '').trim()
+    if (!institution) {
+      setError('Select your University before generating a code')
+      return
+    }
+    setLoading(true)
+    const response = await generateUniversityCoordinatorCode(institution)
+    setLoading(false)
+    if (!response.success || !response.data?.code) {
+      setError(response.message || 'Unable to generate coordinator code')
+      return
+    }
+    setGeneratedCoordinatorCode(response.data.code)
+  }
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -86,10 +127,25 @@ export function RegisterForm() {
       setError('Passwords do not match')
       return
     }
+    if (role === 'University' && universityAccountType === 'coordinator' && !String(formData.get('universityCoordinatorCode') || '').trim()) {
+      setError('Coordinator authorization code is required')
+      return
+    }
     setLoading(true)
     const userData: Record<string, string> = { name: String(formData.get('name') || '').trim(), email: String(formData.get('email') || '').trim(), password, role: role.toLowerCase() }
-    const fieldsByRole: Record<Role, string[]> = { Citizen: ['mobile', 'district', 'villageOrCity'], Government: ['department', 'designation', 'district'], University: ['institution', 'universityDepartment', 'accountType'] }
-    fieldsByRole[role].forEach(field => { userData[field] = String(formData.get(field) || '').trim() })
+    const fieldsByRole: Record<Role, string[]> = { Citizen: ['mobile', 'district', 'villageOrCity'], Government: ['department', 'designation', 'governmentDistrict'], University: ['institution', 'accountType'], Industry: ['organizationName', 'organizationType', 'expertise'] }
+    fieldsByRole[role].forEach(field => {
+      const value = String(formData.get(field) || '').trim()
+      if (value) userData[field] = value
+    })
+    if (role === 'University' && universityAccountType !== 'coordinator') {
+      const department = String(formData.get('universityDepartment') || '').trim()
+      if (department) userData.universityDepartment = department
+    }
+    if (role === 'University' && userData.accountType === 'coordinator') {
+      userData.universityCoordinatorCode = String(formData.get('universityCoordinatorCode') || '').trim()
+    }
+    if (role === 'Government') userData.district = userData.governmentDistrict
     const response = await register(userData)
     setLoading(false)
     if (!response.success) {
@@ -100,5 +156,5 @@ export function RegisterForm() {
   }
 
   if (success) return <AuthFrame title="Account created successfully" subtitle="Account created successfully. Please login to continue."><div className="text-center"><span className="mx-auto grid size-14 place-items-center rounded-full bg-emerald-100 text-emerald-800"><CheckCircle2 className="size-7" /></span><button onClick={() => router.push('/login')} className="mt-8 h-11 w-full rounded-lg bg-emerald-800 text-sm font-bold text-white">Go to Login</button></div></AuthFrame>
-  return <AuthFrame title="Create your account" subtitle="Join the people building a better Jharkhand."><form onSubmit={submit} className="space-y-4"><RoleSelect role={role} setRole={setRole} /><div className="grid gap-4 sm:grid-cols-2"><Field name="name" label="Full Name" /><Field name="email" label="Email" type="email" />{role === 'Citizen' && <><Field name="mobile" label="Mobile Number" type="tel" /><label className="block"><span className="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-200">District *</span><select name="district" required className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 dark:border-slate-700 dark:bg-slate-900 dark:text-white"><option value="">Select district</option>{districts.map(d => <option key={d}>{d}</option>)}</select></label><Field name="villageOrCity" label="Village / City" /></>}{role === 'Government' && <><Field name="department" label="Department" /><Field name="designation" label="Designation" /><Field name="district" label="District" /></>}{role === 'University' && <><Field name="institution" label="University / Institution" /><Field name="universityDepartment" label="Department" /><label className="block"><span className="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-200">Account type *</span><select name="accountType" required className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 dark:border-slate-700 dark:bg-slate-900 dark:text-white"><option value="student">Student</option><option value="faculty">Faculty</option><option value="researcher">Researcher</option></select></label></>}</div><div className="grid gap-4 sm:grid-cols-2"><PasswordField name="password" label="Password" /><PasswordField name="confirmPassword" label="Confirm Password" /></div>{error && <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">{error}</p>}<button disabled={loading} className="h-11 w-full rounded-lg bg-emerald-800 text-sm font-bold text-white disabled:opacity-70">{loading ? 'Creating Account...' : 'Create Account'}</button><p className="text-center text-sm text-slate-500">Already have an account? <Link href="/login" className="font-bold text-emerald-800">Login</Link></p></form></AuthFrame>
+  return <AuthFrame title="Create your account" subtitle="Join the people building a better Jharkhand."><form onSubmit={submit} className="space-y-4"><RoleSelect role={role} setRole={setRole} /><div className="grid gap-4 sm:grid-cols-2"><Field name="name" label={role === 'Industry' ? 'Contact Person' : 'Full Name'} /><Field name="email" label="Official Email" type="email" />{role === 'Citizen' && <><Field name="mobile" label="Mobile Number" type="tel" /><Field name="district" label="District" /><Field name="villageOrCity" label="Village / City" /></>}{role === 'Government' && <><Field name="department" label="Department" /><Field name="designation" label="Designation" /><label className="block"><span className="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-200">Government District <span className="text-orange-600">*</span></span><select name="governmentDistrict" required className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3.5 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white"><option value="">Select district</option>{districts.map(district => <option key={district}>{district}</option>)}</select></label></>}{role === 'University' && <>  {universityAccountType === 'coordinator' ? <label className="block"><span className="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-200">University / Institution <span className="text-orange-600">*</span></span><select name="institution" required className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3.5 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white"><option value="">Select your University</option>{universities.map(university => <option key={university}>{university}</option>)}</select></label> : <Field name="institution" label="University / Institution" />}{universityAccountType !== 'coordinator' && <label className="block"><span className="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-200">Department <span className="text-slate-400">(optional)</span></span><select name="universityDepartment" className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3.5 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white"><option value="">Complete after first login</option>{UNIVERSITY_DEPARTMENTS.map(department => <option key={department}>{department}</option>)}</select></label>}<label className="block sm:col-span-2"><span className="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-200">University account type</span><select name="accountType" value={universityAccountType} onChange={event => setUniversityAccountType(event.target.value)} className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3.5 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white"><option value="">Select account type</option><option value="student">Student</option><option value="faculty">Faculty</option><option value="researcher">Researcher</option><option value="coordinator">University Coordinator (authorization required)</option></select></label>{universityAccountType === 'coordinator' ? <p className="text-xs leading-5 text-slate-500 sm:col-span-2">University Coordinator is a university-level role. Department assignment is handled later when the Coordinator assigns Government problems to the appropriate department and faculty mentor.</p> : <p className="text-xs leading-5 text-slate-500 sm:col-span-2">University members can complete or update their department after first login.</p>}{universityAccountType === 'coordinator' && <div className="sm:col-span-2"><button type="button" onClick={generateCode} disabled={loading || Boolean(generatedCoordinatorCode)} className="rounded-lg border border-emerald-700 px-4 py-2.5 text-sm font-bold text-emerald-800 disabled:cursor-not-allowed disabled:opacity-60">{generatedCoordinatorCode ? 'Authorization Code Generated' : 'Generate Authorization Code'}</button>{generatedCoordinatorCode && <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-4"><p className="text-sm font-bold text-amber-900">Save this Authorization Code. You will need it for future Coordinator logins.</p><code className="mt-2 block break-all text-lg font-bold tracking-wider text-slate-950">{generatedCoordinatorCode}</code><p className="mt-2 text-xs text-amber-800">This code is linked to your selected University and will be required for future Coordinator login.</p></div>}</div>}{universityAccountType === 'coordinator' && <label className="block sm:col-span-2"><span className="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-200">Coordinator authorization code <span className="text-orange-600">*</span></span>  <input name="universityCoordinatorCode" required type="text" autoComplete="off" value={generatedCoordinatorCode} onChange={event => setGeneratedCoordinatorCode(event.target.value)} placeholder="Generate or enter authorized code" className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3.5 text-sm text-slate-900 outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/15 dark:border-slate-700 dark:bg-slate-900 dark:text-white" /></label>}</>}{role === 'Industry' && <><Field name="organizationName" label="Organization Name" /><Field name="organizationType" label="Organization Type" /><Field name="expertise" label="Expertise" /></>}</div><div className="grid gap-4 sm:grid-cols-2"><PasswordField name="password" label="Password" /><PasswordField name="confirmPassword" label="Confirm Password" /></div>{error && <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">{error}</p>}<button disabled={loading} className="h-11 w-full rounded-lg bg-emerald-800 text-sm font-bold text-white disabled:opacity-70">{loading ? 'Creating Account...' : 'Create Account'}</button><p className="text-center text-sm text-slate-500">Already have an account? <Link href="/login" className="font-bold text-emerald-800">Login</Link></p></form></AuthFrame>
 }

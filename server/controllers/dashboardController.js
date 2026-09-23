@@ -2,6 +2,7 @@ import Challenge from '../models/Challenge.js';
 import Project from '../models/Project.js';
 import Collaboration from '../models/Collaboration.js';
 import User from '../models/User.js';
+import Sponsorship from '../models/Sponsorship.js';
 
 export const getDashboardSummary = async (req, res, next) => {
   try {
@@ -65,10 +66,17 @@ export const getDashboardSummary = async (req, res, next) => {
 
 export const getGovernmentAnalytics = async (req, res, next) => {
   try {
+    const government = await User.findById(req.user.id).select('role district governmentDistrict');
+    const governmentDistrict = String(government?.governmentDistrict || government?.district || '').trim();
+    if (!governmentDistrict) {
+      return res.status(403).json({ success: false, message: 'Government account requires district assignment' });
+    }
+    const districtChallengeIds = await Challenge.find({ district: governmentDistrict }).distinct('_id');
+    const districtChallengeFilter = { challenge: { $in: districtChallengeIds } };
     const [
       challengeTotal,
       challengeStatuses,
-      fundedChallenges,
+      sponsorshipStatuses,
       projectTotal,
       projectStatuses,
       universityTotal,
@@ -77,23 +85,20 @@ export const getGovernmentAnalytics = async (req, res, next) => {
       studentCount,
       facultyCount,
     ] = await Promise.all([
-      Challenge.countDocuments(),
-      Challenge.aggregate([{ $group: { _id: '$status', count: { $sum: 1 } } }]),
-      Challenge.aggregate([
-        { $match: { fundingStatus: 'approved' } },
-        { $group: { _id: null, count: { $sum: 1 }, amount: { $sum: '$fundingAmount' } } }
-      ]),
-      Project.countDocuments(),
-      Project.aggregate([{ $group: { _id: '$status', count: { $sum: 1 } } }]),
+      Challenge.countDocuments({ district: governmentDistrict }),
+      Challenge.aggregate([{ $match: { district: governmentDistrict } }, { $group: { _id: '$status', count: { $sum: 1 } } }]),
+      Sponsorship.aggregate([{ $match: districtChallengeFilter }, { $group: { _id: '$status', count: { $sum: 1 }, amount: { $sum: '$amount' } } }]),
+      Project.countDocuments(districtChallengeFilter),
+      Project.aggregate([{ $match: districtChallengeFilter }, { $group: { _id: '$status', count: { $sum: 1 } } }]),
       User.countDocuments({ role: 'university' }),
-      Challenge.distinct('assignedUniversity', { assignedUniversity: { $ne: null } }),
-      Project.distinct('university', { status: { $nin: ['completed', 'rejected'] } }),
-      Project.distinct('teamMembers', { teamMembers: { $exists: true, $ne: [] } }),
-      Project.distinct('facultyMentor', { facultyMentor: { $ne: null } }),
+      Challenge.distinct('assignedUniversity', { district: governmentDistrict, assignedUniversity: { $ne: null } }),
+      Project.distinct('university', { ...districtChallengeFilter, status: { $nin: ['completed', 'rejected'] } }),
+      Project.distinct('teamMembers', { ...districtChallengeFilter, teamMembers: { $exists: true, $ne: [] } }),
+      Project.distinct('facultyMentor', { ...districtChallengeFilter, facultyMentor: { $ne: null } }),
     ]);
 
     const countBy = (rows, key) => rows.find((row) => row._id === key)?.count || 0;
-    const funded = fundedChallenges[0] || { count: 0, amount: 0 };
+    const approvedSponsorships = sponsorshipStatuses.find((row) => row._id === 'approved') || { count: 0, amount: 0 };
     res.status(200).json({
       success: true,
       data: {
@@ -126,8 +131,9 @@ export const getGovernmentAnalytics = async (req, res, next) => {
           facultyMentors: facultyCount.length,
         },
         funding: {
-          approvedAmount: funded.amount || 0,
-          fundedCount: funded.count || 0,
+          approvedAmount: approvedSponsorships.amount || 0,
+          fundedCount: approvedSponsorships.count || 0,
+          sponsorship: Object.fromEntries(sponsorshipStatuses.map((row) => [row._id, { count: row.count, amount: row.amount || 0 }])),
         },
       },
     });
