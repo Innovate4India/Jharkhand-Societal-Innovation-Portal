@@ -60,7 +60,7 @@ Solution Library
 
 
 
-Haan bro 😄 README ka ready-to-copy text de raha hoon. Isko directly GitHub ke README.md me paste kar dena.
+
 
 # 🇮🇳 Jharkhand Societal Innovation Portal
 
