@@ -109,9 +109,6 @@ export async function login(email: string, password: string, coordinator?: { ins
       universityDepartment?: string;
       accountType?: string;
       primaryClub?: string | null;
-      universityRole?: 'member' | 'innovation_coordinator';
-      clubRole?: 'member' | 'coordinator';
-      clubCoordinatorClub?: string | null;
     };
   }>('/api/auth/login', {
     method: 'POST',
@@ -352,7 +349,6 @@ export async function getChallenges() {
     assignmentStatus?: 'unassigned' | 'pending' | 'awaiting_acceptance' | 'accepted';
     department?: string | null;
     departmentAssignedAt?: string | null;
-    departmentMentor?: { _id?: string; name?: string; email?: string; institution?: string; universityDepartment?: string; accountType?: string } | null;
     departmentMentorAssignedBy?: { _id?: string; name?: string; email?: string } | null;
     departmentMentorAssignedAt?: string | null;
     acceptedByUniversity?: { _id?: string; name?: string; email?: string };

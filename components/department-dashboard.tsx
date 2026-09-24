@@ -30,6 +30,10 @@ function date(value?: string) {
   return value ? new Date(value).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
 }
 
+function hasAccountType(member: { accountType?: string }, accountType: 'student' | 'researcher') {
+  return member.accountType?.trim().toLowerCase() === accountType
+}
+
 function Card({ title, eyebrow, children }: { title: string; eyebrow?: string; children: React.ReactNode }) {
   return <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
     {eyebrow && <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-red-600">{eyebrow}</p>}
@@ -118,9 +122,9 @@ export default function DepartmentDashboard({ user, section = 'problems', onSect
 
   const visibleChallenges = useMemo(() => challenges.filter((challenge) => `${challenge.title} ${challenge.category} ${challenge.district}`.toLowerCase().includes(search.toLowerCase())), [challenges, search])
   const mentor = challenges.find((challenge) => challenge.departmentMentor)?.departmentMentor
-  const eligibleMembers = members.filter((member) => member.accountType === 'student' || member.accountType === 'researcher')
-  const eligibleStudents = eligibleMembers.filter((member) => member.accountType === 'student')
-  const eligibleResearchers = eligibleMembers.filter((member) => member.accountType === 'researcher')
+  const eligibleMembers = members.filter((member) => hasAccountType(member, 'student') || hasAccountType(member, 'researcher'))
+  const eligibleStudents = eligibleMembers.filter((member) => hasAccountType(member, 'student'))
+  const eligibleResearchers = eligibleMembers.filter((member) => hasAccountType(member, 'researcher'))
   const libraryProjects = projects.filter((project) => project.solutionStatus === 'submitted' && (project.status === 'deployed' || project.status === 'completed'))
   const stageLabels = ['proposed', 'prototype', 'testing', 'deployed', 'completed']
   const parsedProgressPercentage = Number(progressPercentage)
@@ -211,8 +215,8 @@ export default function DepartmentDashboard({ user, section = 'problems', onSect
       return
     }
     const teamMembers = progressProject.teamMembers || []
-    const hasStudent = teamMembers.some((member) => member.accountType === 'student')
-    const hasResearcher = teamMembers.some((member) => member.accountType === 'researcher')
+    const hasStudent = teamMembers.some((member) => hasAccountType(member, 'student'))
+    const hasResearcher = teamMembers.some((member) => hasAccountType(member, 'researcher'))
     if (!hasStudent || !hasResearcher) {
       setNoticeTone('error'); setNotice('Select at least one Student and one Researcher before updating project progress.')
       return

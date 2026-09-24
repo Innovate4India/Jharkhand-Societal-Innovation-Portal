@@ -128,6 +128,12 @@ export const createProject = async (req, res, next) => {
         message: `Project type must be one of: ${validProjectTypes.join(', ')}`
       });
     }
+        const stageOrder = ['proposed', 'prototype', 'testing', 'deployed', 'completed'];
+        const currentIndex = stageOrder.indexOf(project.currentStage || 'proposed');
+        const nextIndex = stageOrder.indexOf(currentStage);
+        if (nextIndex < currentIndex || nextIndex > currentIndex + 1) {
+          return res.status(400).json({ success: false, message: 'Project stages must be updated sequentially' });
+        }
 
     // Validate timeline
     if (!timeline.startDate || !timeline.expectedCompletionDate) {

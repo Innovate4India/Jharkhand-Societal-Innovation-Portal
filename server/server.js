@@ -1,5 +1,7 @@
 import express from 'express';
 import dotenv from 'dotenv';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import cors from 'cors';
 import connectDB from './config/db.js';
 import { notFound, errorHandler } from './middleware/errorMiddleware.js';
@@ -20,7 +22,9 @@ import searchRoutes from './routes/searchRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
 
 // Load environment variables
-dotenv.config();
+const currentFilePath = fileURLToPath(import.meta.url);
+const serverDirectory = path.dirname(currentFilePath);
+dotenv.config({ path: path.resolve(serverDirectory, '..', '.env') });
 
 const app = express();
 const PORT = Number.parseInt(process.env.PORT || '5000', 10);

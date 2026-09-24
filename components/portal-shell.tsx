@@ -1141,7 +1141,6 @@ function Dashboard({ setView, onRewardsChanged }: { setView: (v: View) => void; 
       subtitle="Track your submitted problems with a simple status update."
       stats={[
         { label: "Problems submitted", value: submittedCount === null ? "—" : String(submittedCount), note: "Submitted by you", icon: FileText },
-        { label: "Current status", value: submittedChallenges[0]?.status || '—', note: 'Latest visible update', icon: CheckCircle2 },
       ]}
       showCitizenTagline
       actions={<button onClick={() => setView("submit")} className="rounded-lg bg-[#E31E24] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#C8171D]">Submit a problem</button>}
@@ -1153,9 +1152,6 @@ function Dashboard({ setView, onRewardsChanged }: { setView: (v: View) => void; 
             <div key={challenge._id} className="rounded-xl border border-slate-100 bg-slate-50 p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <p className="min-w-0 flex-1 break-words font-bold text-slate-800">Problem: {challenge.title}</p>
-                <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${challenge.status === 'PROBLEM SOLVED' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800'}`}>
-                  {challenge.status}
-                </span>
               </div>
               {challenge.project ? (
                 <div className="mt-3 grid gap-2 text-sm text-slate-600 sm:grid-cols-2">
